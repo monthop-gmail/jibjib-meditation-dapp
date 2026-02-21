@@ -116,8 +116,8 @@ function App() {
         canClaim,
       })
     } catch (err) {
-      console.error('getUserStats failed:', err.message)
-      setError('ไม่สามารถดึงข้อมูลจาก Contract ได้ — อาจเป็น Contract ผิด')
+      console.error('getUserStats failed:', err.message, 'contract:', c.target, 'addr:', addr)
+      setError(`ดึงข้อมูลไม่ได้ — ลอง Hard Refresh (Ctrl+Shift+R) หรือเปลี่ยน network แล้วกลับมา`)
       return
     }
 
