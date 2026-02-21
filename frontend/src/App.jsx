@@ -104,6 +104,18 @@ function App() {
   const net = NETWORKS[network]
   const selectedToken = net.tokens[selectedTokenIdx]
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => clearInterval(timerRef.current)
+  }, [])
+
+  // Auto-refresh stats every 30s
+  useEffect(() => {
+    if (!contract || !account || meditating) return
+    const id = setInterval(() => loadStats(contract, account), 30000)
+    return () => clearInterval(id)
+  }, [contract, account, meditating, loadStats])
+
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
     if (!meditating) return
@@ -178,7 +190,11 @@ function App() {
   }, [net.tokens])
 
   async function switchNetwork(key) {
-    if (meditating) return
+    if (meditating) {
+      clearInterval(timerRef.current)
+      setMeditating(false)
+      setSecondsLeft(MEDITATION_SECONDS)
+    }
     const target = NETWORKS[key]
     localStorage.setItem('jibjib_network', key)
     setNetwork(key)
@@ -395,7 +411,10 @@ function App() {
     e.preventDefault()
     if (!contract) return
     const amount = e.target.elements.donateAmount.value
-    if (!amount) return
+    if (!amount || Number(amount) <= 0) {
+      setError('กรุณาใส่จำนวนที่ถูกต้อง')
+      return
+    }
     setError('')
     try {
       const parsedAmount = parseEther(amount)
@@ -539,6 +558,14 @@ function App() {
               <div className="stat-item">
                 <span className="stat-value">{stats.todaySessions}/3</span>
                 <span className="stat-label">วันนี้</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">3 ชม.</span>
+                <span className="stat-label">พักระหว่างรอบ</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">22:00</span>
+                <span className="stat-label">Bonus 2x (UTC)</span>
               </div>
             </div>
 
