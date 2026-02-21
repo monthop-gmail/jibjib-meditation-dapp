@@ -66,7 +66,12 @@ const CONTRACT_ABI = [
 const MEDITATION_SECONDS = 300
 
 function App() {
-  const [network, setNetwork] = useState(() => localStorage.getItem('jibjib_network') || 'jbchain')
+  const [network, setNetwork] = useState(() => {
+    const saved = localStorage.getItem('jibjib_network')
+    if (saved && NETWORKS[saved]) return saved
+    localStorage.removeItem('jibjib_network')
+    return 'jbchain'
+  })
   const [account, setAccount] = useState(null)
   const [contract, setContract] = useState(null)
   const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
