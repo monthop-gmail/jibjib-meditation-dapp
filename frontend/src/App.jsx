@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 
+const IERC20_ABI = [
+  'function approve(address spender, uint256 amount) external returns (bool)',
+  'function allowance(address owner, address spender) external view returns (uint256)',
+]
+
 const NETWORKS = {
   jbchain: {
     key: 'jbchain',
@@ -75,8 +80,6 @@ function App() {
   const [rewardAmounts, setRewardAmounts] = useState({})
   const [pendingRewards, setPendingRewards] = useState({})
   const [fundBalances, setFundBalances] = useState({})
-  const [donateAmount, setDonateAmount] = useState('')
-  const [donateToken, setDonateToken] = useState(null)
   const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
   const timerRef = useRef(null)
 
@@ -242,6 +245,7 @@ function App() {
       setMeditating(false)
       setCompleted(true)
       clearInterval(timerRef.current)
+      setSecondsLeft(MEDITATION_SECONDS)
 
       const noRewardTopic = contract.interface.getEvent('MeditationCompletedNoReward').topicHash
       const hasPending = receipt.logs.some(log => log.topics[0] === noRewardTopic)
@@ -286,15 +290,29 @@ function App() {
     if (!amount) return
     setError('')
     try {
-      setLoading('กำลังบริจาค...')
+      const parsedAmount = parseEther(amount)
       let tx
+
       if (token.address === '0x0000000000000000000000000000000000000000') {
         // Native token: send value
-        tx = await contract.donate(token.address, 0, { value: parseEther(amount) })
+        setLoading('กำลังบริจาค...')
+        tx = await contract.donate(token.address, 0, { value: parsedAmount })
       } else {
-        // ERC20 token: send amount (requires prior approval)
-        tx = await contract.donate(token.address, parseEther(amount))
+        // ERC20 token: check allowance and approve if needed
+        const signer = await new BrowserProvider(window.ethereum).getSigner()
+        const erc20 = new Contract(token.address, IERC20_ABI, signer)
+        const allowance = await erc20.allowance(account, net.contract)
+
+        if (allowance < parsedAmount) {
+          setLoading(`กำลัง approve ${token.symbol}...`)
+          const approveTx = await erc20.approve(net.contract, parsedAmount)
+          await approveTx.wait()
+        }
+
+        setLoading('กำลังบริจาค...')
+        tx = await contract.donate(token.address, parsedAmount)
       }
+
       await tx.wait()
       setCompletedMsg(`บริจาค ${amount} ${token.symbol} สำเร็จ!`)
       setCompleted(true)
@@ -313,7 +331,7 @@ function App() {
   return (
     <div className="app">
       <h1>JIBJIB Meditation</h1>
-      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน KUB Chain</p>
+      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน Blockchain</p>
 
       {/* Network Selector */}
       <div className="network-selector">
@@ -438,15 +456,7 @@ function App() {
                     <span className="donate-token-name">{token.symbol}</span>
                     <span className="donate-token-fund">Fund: {fundBalances[token.symbol] || '0'}</span>
                   </div>
-                  <form className="donate-form" onSubmit={(e) => {
-                    e.preventDefault()
-                    const input = e.target.elements.donateAmount
-                    if (input.value) {
-                      setDonateToken(token)
-                      setDonateAmount(input.value)
-                      handleDonate(e, token)
-                    }
-                  }}>
+                  <form className="donate-form" onSubmit={(e) => handleDonate(e, token)}>
                     <input
                       name="donateAmount"
                       type="number"
