@@ -596,9 +596,17 @@ function App() {
               </button>
             )}
             {mState.phase === 'MEDITATING' && secondsLeft === 0 && (
-              <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
-                ยืนยันรับ Reward
-              </button>
+              <div className="pending-complete">
+                <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
+                  ยืนยันรับ Reward
+                </button>
+                <button className="btn btn-skip" onClick={() => {
+                  setStats(s => ({ ...s, isMeditating: false }))
+                  dispatch({ type: 'SKIP_PENDING' })
+                }} disabled={!!mState.loading}>
+                  ไว้ทีหลัง
+                </button>
+              </div>
             )}
             {mState.phase === 'MEDITATING' && secondsLeft > 0 && (
               <p className="timer-label">กำลังทำสมาธิ... อย่าออกจากหน้านี้</p>
