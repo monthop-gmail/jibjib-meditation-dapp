@@ -151,8 +151,9 @@ function App() {
 
   async function connectWallet() {
     setError('')
-    if (!window.ethereum) {
-      setError('กรุณาติดตั้ง MetaMask')
+    const ethereum = window.ethereum
+    if (!ethereum) {
+      setError('ไม่พบ Wallet — กรุณาติดตั้ง MetaMask หรือใช้ Brave Wallet')
       return
     }
 
@@ -164,34 +165,46 @@ function App() {
 
     try {
       setLoading('กำลังเชื่อมต่อ...')
-      const provider = new BrowserProvider(window.ethereum)
-      await provider.send('eth_requestAccounts', [])
+      await ethereum.request({ method: 'eth_requestAccounts' })
 
       // Switch to selected network
       try {
-        await window.ethereum.request({
+        await ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: net.chainId }],
         })
       } catch (switchErr) {
-        if (switchErr.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: net.chainId,
-              chainName: net.chainName,
-              rpcUrls: net.rpcUrls,
-              nativeCurrency: net.nativeCurrency,
-              blockExplorerUrls: net.blockExplorerUrls,
-            }],
-          })
+        // 4902 = chain not added (MetaMask), also handle Brave/other wallets
+        if (switchErr.code === 4902 || switchErr.code === -32603) {
+          try {
+            await ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: net.chainId,
+                chainName: net.chainName,
+                rpcUrls: net.rpcUrls,
+                nativeCurrency: net.nativeCurrency,
+                blockExplorerUrls: net.blockExplorerUrls,
+              }],
+            })
+          } catch (addErr) {
+            setError(`เพิ่ม ${net.label} ไม่สำเร็จ — กรุณาเพิ่ม network ใน Wallet เอง`)
+            setLoading('')
+            return
+          }
+        } else if (switchErr.code === 4001) {
+          setError('ผู้ใช้ปฏิเสธการเปลี่ยน network')
+          setLoading('')
+          return
         } else {
-          setError(`เชื่อมต่อ ${net.label} ไม่สำเร็จ`)
+          setError(`เชื่อมต่อ ${net.label} ไม่สำเร็จ: ${switchErr.message || 'ลองเพิ่ม network เอง'}`)
           setLoading('')
           return
         }
       }
 
+      // Re-create provider after chain switch for compatibility
+      const provider = new BrowserProvider(ethereum)
       const signer = await provider.getSigner()
       const addr = await signer.getAddress()
       const c = new Contract(contractAddress, CONTRACT_ABI, signer)
@@ -370,7 +383,7 @@ function App() {
 
       {!account ? (
         <button className="btn btn-connect" onClick={connectWallet} disabled={!!loading}>
-          เชื่อมต่อ MetaMask
+          เชื่อมต่อ Wallet
         </button>
       ) : (
         <div className="main">
