@@ -87,6 +87,8 @@ function fmtTime(seconds) {
   return `${mins} นาที`
 }
 
+const HISTORY_MAX = 50
+
 const MEDITATION_SECONDS = 300
 
 function App() {
@@ -112,6 +114,9 @@ function App() {
   const [fundBalances, setFundBalances] = useState({})
   const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
   const [walletBalances, setWalletBalances] = useState({})
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jibjib_history') || '[]') } catch { return [] }
+  })
   const timerRef = useRef(null)
 
   const net = NETWORKS[network] || NETWORKS.jbchain
@@ -372,13 +377,23 @@ function App() {
       const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
       const reward = rewardAmounts[selectedToken.symbol] || '0'
 
+      let result = 'recorded'
       if (hasCompleted) {
         setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`)
+        result = 'rewarded'
       } else if (hasPending) {
         setCompletedMsg('ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund')
+        result = 'pending'
       } else {
         setCompletedMsg('บันทึกสำเร็จ! (ยังไม่ถึงเวลารับ Reward)')
       }
+
+      const entry = { ts: Date.now(), net: net.label, token: selectedToken.symbol, reward, result }
+      setHistory(prev => {
+        const updated = [entry, ...prev].slice(0, HISTORY_MAX)
+        localStorage.setItem('jibjib_history', JSON.stringify(updated))
+        return updated
+      })
 
       await loadStats(contract, account)
     } catch (err) {
@@ -639,6 +654,27 @@ function App() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div className="history-section">
+          <h3>ประวัติ ({history.length})</h3>
+          <div className="history-list">
+            {history.map((h, i) => (
+              <div key={i} className={`history-row ${h.result}`}>
+                <span className="history-date">{new Date(h.ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span>
+                <span className="history-time">{new Date(h.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="history-net">{h.net}</span>
+                <span className="history-result">
+                  {h.result === 'rewarded' ? `+${fmtBal(h.reward)} ${h.token}` : h.result === 'pending' ? 'pending' : 'บันทึก'}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button className="btn-clear-history" onClick={() => { setHistory([]); localStorage.removeItem('jibjib_history') }}>
+            ล้างประวัติ
+          </button>
         </div>
       )}
 
