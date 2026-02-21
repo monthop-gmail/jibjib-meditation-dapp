@@ -30,10 +30,14 @@ contract MeditationReward {
     
     mapping(address => uint256) public tokenBalances;
     uint256 public nativeBalance;
+    
+    mapping(address => mapping(address => uint256)) public pendingClaims;
 
     event MeditationStarted(address indexed user, uint256 timestamp);
     event MeditationCompleted(address indexed user, uint256 reward, address token, bool isBonus);
     event MeditationCompletedNoReward(address indexed user, string reason);
+    event PendingRewardStored(address indexed user, address token, uint256 amount);
+    event PendingRewardClaimed(address indexed user, address token, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount, address token);
     event Donated(address indexed donor, address token, uint256 amount);
     event Withdrawn(address indexed owner, address token, uint256 amount);
@@ -119,8 +123,34 @@ contract MeditationReward {
             emit MeditationCompleted(msg.sender, reward, token, isBonus);
             emit RewardClaimed(msg.sender, reward, token);
         } else {
-            emit MeditationCompletedNoReward(msg.sender, "Insufficient fund");
+            pendingClaims[msg.sender][token] += reward;
+            emit MeditationCompletedNoReward(msg.sender, "Insufficient fund - stored as pending");
+            emit PendingRewardStored(msg.sender, token, reward);
         }
+    }
+
+    function claimPendingReward(address token) external {
+        uint256 pending = pendingClaims[msg.sender][token];
+        require(pending > 0, "No pending reward");
+        
+        uint256 availableBalance = token == address(0) ? nativeBalance : tokenBalances[token];
+        require(availableBalance >= pending, "Insufficient balance");
+        
+        pendingClaims[msg.sender][token] = 0;
+        
+        if (token == address(0)) {
+            nativeBalance -= pending;
+            payable(msg.sender).transfer(pending);
+        } else {
+            tokenBalances[token] -= pending;
+            IERC20(token).transfer(msg.sender, pending);
+        }
+        
+        emit PendingRewardClaimed(msg.sender, token, pending);
+    }
+
+    function getPendingReward(address user, address token) external view returns (uint256) {
+        return pendingClaims[user][token];
     }
 
     function getRewardAmount(address token) external view returns (uint256) {
