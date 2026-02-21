@@ -31,10 +31,7 @@ function App() {
   const [completed, setCompleted] = useState(false)
   const timerRef = useRef(null)
 
-<<<<<<< HEAD
-=======
   // Anti-cheat: detect tab switch / minimize
->>>>>>> 9f84a59bd7124223f364945481a36a8242048f3e
   useEffect(() => {
     if (!meditating) return
     const handleVisibility = () => {
@@ -67,10 +64,7 @@ function App() {
       const provider = new BrowserProvider(window.ethereum)
       const accounts = await provider.send('eth_requestAccounts', [])
 
-<<<<<<< HEAD
-=======
       // Switch to KUB L2 Testnet
->>>>>>> 9f84a59bd7124223f364945481a36a8242048f3e
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
@@ -83,22 +77,15 @@ function App() {
             params: [KUB_L2_TESTNET],
           })
         } else {
-<<<<<<< HEAD
           setError('เชื่อมต่อ KUB L2 ไม่สำเร็จ: ' + (switchErr.message || 'ลองเพิ่ม network เอง'))
           setLoading('')
           return
-=======
-          throw switchErr
->>>>>>> 9f84a59bd7124223f364945481a36a8242048f3e
         }
       }
 
       const signer = await provider.getSigner()
       const addr = accounts[0]
-<<<<<<< HEAD
-=======
       // Contract address - ต้องใส่หลัง deploy
->>>>>>> 9f84a59bd7124223f364945481a36a8242048f3e
       const contractAddress = localStorage.getItem('jibjib_contract') || ''
       if (!contractAddress) {
         setAccount(addr)
