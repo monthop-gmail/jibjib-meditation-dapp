@@ -16,7 +16,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-l1.jibchain.net'],
     nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
     blockExplorerUrls: ['https://exp-l1.jibchain.net'],
-    contract: '0x7DCd9A42096D9f2B97CD6680d72E71bCBCFfdCf1',
+    contract: '0x59D689A6ded742A4BaE7D89d2A462c79B0F2897B',
     tokens: [
       { address: '0xebe937ee67e3219d176965cc08110a258f925e01', symbol: 'JIBJIB', name: 'JIBJIB' },
       { address: '0x440bb674a2e443d600396a69c4c46362148699a2', symbol: 'JIBJIB C', name: 'JIBJIB C' },
@@ -31,7 +31,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
     nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
     blockExplorerUrls: ['https://testnet.kubscan.com'],
-    contract: '0x740ff5b8646c7feb3f46A475a33A992DC2CCC5c8',
+    contract: '0x17217acD1CF5DC1b38E7Ef007Ae684c3c40Ec1d8',
     tokens: [
       { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
     ],
@@ -63,6 +63,9 @@ const CONTRACT_ABI = [
   'function getPendingReward(address user, address token) external view returns (uint256)',
   'function getTokenBalance(address token) external view returns (uint256)',
   'function getSupportedTokens() external view returns (address[])',
+  'event MeditationCompleted(address indexed user, uint256 reward, address token, bool isBonus)',
+  'event MeditationRecorded(address indexed user, uint256 timestamp)',
+  'event PendingRewardStored(address indexed user, address token, uint256 amount)',
 ]
 
 function fmtBal(val) {
@@ -396,14 +399,20 @@ function App() {
       clearInterval(timerRef.current)
       setSecondsLeft(MEDITATION_SECONDS)
 
-      const noRewardTopic = contract.interface.getEvent('MeditationCompletedNoReward').topicHash
-      const hasPending = receipt.logs.some(log => log.topics[0] === noRewardTopic)
+      const completedTopic = contract.interface.getEvent('MeditationCompleted').topicHash
+      const pendingTopic = contract.interface.getEvent('PendingRewardStored').topicHash
+      const recordedTopic = contract.interface.getEvent('MeditationRecorded').topicHash
+
+      const hasCompleted = receipt.logs.some(log => log.topics[0] === completedTopic)
+      const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
       const reward = rewardAmounts[selectedToken.symbol] || '0'
 
-      if (hasPending) {
+      if (hasCompleted) {
+        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`)
+      } else if (hasPending) {
         setCompletedMsg('ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund')
       } else {
-        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`)
+        setCompletedMsg('บันทึกสำเร็จ! (ยังไม่ถึงเวลารับ Reward)')
       }
 
       await loadStats(contract, account)

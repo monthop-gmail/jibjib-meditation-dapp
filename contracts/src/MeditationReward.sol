@@ -22,6 +22,7 @@ contract MeditationReward {
     mapping(address => uint256) public dailySessions;
     mapping(address => uint256) public lastSessionDay;
     mapping(address => bool) public hasClaimedToday;
+    mapping(address => uint256) public lastRewardedTime;
 
     address public owner;
     address[] public supportedTokens;
@@ -95,8 +96,7 @@ contract MeditationReward {
         if (dailySessions[msg.sender] >= 3) {
             eligible = false;
         } else if (dailySessions[msg.sender] > 0) {
-            uint256 lastTime = lastSessionDay[msg.sender] * 1 days + lastMeditationTime[msg.sender] % 1 days;
-            if (block.timestamp - lastTime < SESSION_GAP) {
+            if (block.timestamp - lastRewardedTime[msg.sender] < SESSION_GAP) {
                 eligible = false;
             }
         }
@@ -110,6 +110,7 @@ contract MeditationReward {
 
         // Eligible for reward
         dailySessions[msg.sender]++;
+        lastRewardedTime[msg.sender] = block.timestamp;
 
         uint256 reward = rewardAmounts[token];
         if (reward == 0) {
@@ -217,8 +218,7 @@ contract MeditationReward {
             return (false, 0, sessions, lastMeditationTime[user] > 0);
         }
         
-        uint256 lastTime = lastSessionDay[user] * 1 days + lastMeditationTime[user] % 1 days;
-        uint256 timePassed = block.timestamp - lastTime;
+        uint256 timePassed = block.timestamp - lastRewardedTime[user];
         
         if (timePassed >= SESSION_GAP) {
             return (true, 0, sessions, lastMeditationTime[user] > 0);
