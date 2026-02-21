@@ -78,6 +78,7 @@ function App() {
   const [pendingRewards, setPendingRewards] = useState({})
   const [fundBalances, setFundBalances] = useState({})
   const [donateAmount, setDonateAmount] = useState('')
+  const [donateToken, setDonateToken] = useState(null)
   const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
   const timerRef = useRef(null)
 
@@ -279,17 +280,19 @@ function App() {
     }
   }
 
-  async function handleDonate(e) {
+  async function handleDonate(e, token) {
     e.preventDefault()
-    if (!contract || !donateAmount) return
+    if (!contract) return
+    const amount = e.target.elements.donateAmount.value
+    if (!amount) return
     setError('')
     try {
       setLoading('กำลังบริจาค...')
-      const tx = await contract.donate(selectedToken.address, 0, { value: parseEther(donateAmount) })
+      const tx = await contract.donate(token.address, 0, { value: parseEther(amount) })
       await tx.wait()
-      setCompletedMsg(`บริจาค ${donateAmount} ${selectedToken.symbol} สำเร็จ!`)
+      setCompletedMsg(`บริจาค ${amount} ${token.symbol} สำเร็จ!`)
       setCompleted(true)
-      setDonateAmount('')
+      e.target.elements.donateAmount.value = ''
       await loadStats(contract, account)
     } catch (err) {
       setError(err.reason || err.message || 'บริจาคไม่สำเร็จ')
@@ -421,20 +424,37 @@ function App() {
 
           {/* Donate */}
           <div className="donate-section">
-            <h3>บริจาค {selectedToken.symbol} เข้า Fund</h3>
-            <form className="donate-form" onSubmit={handleDonate}>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder={`จำนวน ${selectedToken.symbol}`}
-                value={donateAmount}
-                onChange={e => setDonateAmount(e.target.value)}
-              />
-              <button type="submit" className="btn btn-donate" disabled={!!loading || !contract || !donateAmount}>
-                บริจาค
-              </button>
-            </form>
+            <h3>บริจาคเข้า Fund</h3>
+            <div className="donate-list">
+              {net.tokens.map(token => (
+                <div key={token.symbol} className="donate-row">
+                  <div className="donate-token-info">
+                    <span className="donate-token-name">{token.symbol}</span>
+                    <span className="donate-token-fund">Fund: {fundBalances[token.symbol] || '0'}</span>
+                  </div>
+                  <form className="donate-form" onSubmit={(e) => {
+                    e.preventDefault()
+                    const input = e.target.elements.donateAmount
+                    if (input.value) {
+                      setDonateToken(token)
+                      setDonateAmount(input.value)
+                      handleDonate(e, token)
+                    }
+                  }}>
+                    <input
+                      name="donateAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder={token.symbol}
+                    />
+                    <button type="submit" className="btn btn-donate-sm" disabled={!!loading || !contract}>
+                      +
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

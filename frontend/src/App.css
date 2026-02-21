@@ -408,33 +408,65 @@ h1 {
   font-size: 1rem;
 }
 
-.donate-form {
+.donate-list {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.donate-form input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
+.donate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
-  border: 1px solid #444;
-  background: rgba(255, 255, 255, 0.08);
-  color: #e0e0e0;
+}
+
+.donate-token-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.donate-token-name {
+  font-weight: 600;
+  color: #a29bfe;
   font-size: 0.9rem;
 }
 
-.btn-donate {
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
-  color: white;
-  width: auto;
-  max-width: none;
+.donate-token-fund {
+  font-size: 0.75rem;
+  color: #636e72;
 }
 
-.btn-donate:hover:not(:disabled) {
-  box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+.donate-form {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.donate-form input {
+  width: 90px;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  font-size: 0.8rem;
+}
+
+.btn-donate-sm {
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-donate-sm:hover:not(:disabled) {
+  box-shadow: 0 2px 10px rgba(108, 92, 231, 0.4);
 }
 
 footer {
