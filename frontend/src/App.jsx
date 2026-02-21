@@ -580,14 +580,14 @@ function App() {
 
           <div className="actions">
             {/* Eligibility Status */}
-            {mState.phase === 'IDLE' && !stats.isMeditating && eligibility.todaySessions > 0 && (
+            {['IDLE', 'COMPLETED'].includes(mState.phase) && !stats.isMeditating && eligibility.todaySessions > 0 && (
               <div className={`eligibility ${eligibility.canGetReward ? 'eligible' : 'waiting'}`}>
                 {eligibility.canGetReward
                   ? '✓ พร้อมรับ Reward'
                   : `⏳ ต้องรออีก ${fmtTime(eligibility.secondsUntilReward)} ถึงจะได้รับ Reward`}
               </div>
             )}
-            {mState.phase === 'IDLE' && !stats.isMeditating && (
+            {['IDLE', 'COMPLETED'].includes(mState.phase) && !stats.isMeditating && (
               <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract || !stats.canClaim}>
                 {stats.canClaim ? 'เริ่มทำสมาธิ' : 'ครบ 3 ครั้งวันนี้แล้ว'}
               </button>
