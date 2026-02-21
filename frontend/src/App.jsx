@@ -4,6 +4,7 @@ import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 const IERC20_ABI = [
   'function approve(address spender, uint256 amount) external returns (bool)',
   'function allowance(address owner, address spender) external view returns (uint256)',
+  'function balanceOf(address account) external view returns (uint256)',
 ]
 
 const NETWORKS = {
@@ -86,6 +87,7 @@ function App() {
   const [pendingRewards, setPendingRewards] = useState({})
   const [fundBalances, setFundBalances] = useState({})
   const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
+  const [walletBalances, setWalletBalances] = useState({})
   const timerRef = useRef(null)
 
   const net = NETWORKS[network]
@@ -124,7 +126,9 @@ function App() {
     const rewards = {}
     const pendings = {}
     const balances = {}
+    const walletBals = {}
 
+    const provider = c.runner?.provider || c.runner
     for (const token of net.tokens) {
       try {
         const [reward, pending, balance] = await Promise.all([
@@ -140,28 +144,93 @@ function App() {
         pendings[token.symbol] = '0'
         balances[token.symbol] = '0'
       }
+
+      // Wallet balance
+      try {
+        if (token.address === '0x0000000000000000000000000000000000000000') {
+          const bal = await provider.getBalance(addr)
+          walletBals[token.symbol] = formatEther(bal)
+        } else {
+          const erc20 = new Contract(token.address, IERC20_ABI, provider)
+          const bal = await erc20.balanceOf(addr)
+          walletBals[token.symbol] = formatEther(bal)
+        }
+      } catch {
+        walletBals[token.symbol] = '-'
+      }
     }
 
     setRewardAmounts(rewards)
     setPendingRewards(pendings)
     setFundBalances(balances)
+    setWalletBalances(walletBals)
   }, [net.tokens])
 
-  function switchNetwork(key) {
+  async function switchNetwork(key) {
     if (meditating) return
+    const target = NETWORKS[key]
     localStorage.setItem('jibjib_network', key)
     setNetwork(key)
-    // Disconnect and reset state so user reconnects on new network
-    setAccount(null)
-    setContract(null)
-    setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
-    setRewardAmounts({})
-    setPendingRewards({})
-    setFundBalances({})
     setSelectedTokenIdx(0)
     setError('')
     setCompleted(false)
     setCompletedMsg('')
+    setRewardAmounts({})
+    setPendingRewards({})
+    setFundBalances({})
+    setWalletBalances({})
+
+    if (!account || !window.ethereum || !target.contract) {
+      setAccount(null)
+      setContract(null)
+      setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+      return
+    }
+
+    // Auto-switch chain in wallet
+    try {
+      setLoading(`กำลังเปลี่ยนไป ${target.label}...`)
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: target.chainId }],
+        })
+      } catch (switchErr) {
+        if (switchErr.code === 4902 || switchErr.code === -32603) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: target.chainId,
+              chainName: target.chainName,
+              rpcUrls: target.rpcUrls,
+              nativeCurrency: target.nativeCurrency,
+              blockExplorerUrls: target.blockExplorerUrls,
+            }],
+          })
+        } else if (switchErr.code === 4001) {
+          setError('ผู้ใช้ปฏิเสธการเปลี่ยน network')
+          setLoading('')
+          return
+        } else {
+          throw switchErr
+        }
+      }
+
+      const provider = new BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+      const addr = await signer.getAddress()
+      const c = new Contract(target.contract, CONTRACT_ABI, signer)
+      setContract(c)
+      setAccount(addr)
+      await loadStats(c, addr)
+    } catch (err) {
+      setError(`เปลี่ยน network ไม่สำเร็จ: ${err.message || ''}`)
+      setAccount(null)
+      setContract(null)
+      setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+    } finally {
+      setLoading('')
+    }
   }
 
   async function connectWallet() {
@@ -464,11 +533,18 @@ function App() {
 
             {/* Per-token stats */}
             <div className="token-stats">
+              <div className="token-stat-header">
+                <span className="token-name"></span>
+                <span className="token-wallet">กระเป๋า</span>
+                <span className="token-reward">รางวัล</span>
+                <span className="token-fund">Fund</span>
+              </div>
               {net.tokens.map(token => (
                 <div key={token.symbol} className="token-stat-row">
                   <span className="token-name">{token.symbol}</span>
-                  <span className="token-reward">รางวัล: {rewardAmounts[token.symbol] || '0'}</span>
-                  <span className="token-fund">Fund: {fundBalances[token.symbol] || '0'}</span>
+                  <span className="token-wallet">{walletBalances[token.symbol] || '-'}</span>
+                  <span className="token-reward">{rewardAmounts[token.symbol] || '0'}</span>
+                  <span className="token-fund">{fundBalances[token.symbol] || '0'}</span>
                 </div>
               ))}
             </div>

@@ -331,9 +331,17 @@ h1 {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.token-stat-header {
+  display: flex;
+  align-items: center;
+  padding: 0.2rem 0 0.4rem;
+  font-size: 0.7rem;
+  color: #636e72;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .token-stat-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 0.4rem 0;
   font-size: 0.85rem;
@@ -342,18 +350,29 @@ h1 {
 .token-name {
   font-weight: 600;
   color: #a29bfe;
-  min-width: 70px;
+  min-width: 65px;
   text-align: left;
 }
 
+.token-wallet {
+  flex: 1;
+  color: #81ecec;
+  text-align: right;
+  font-size: 0.8rem;
+}
+
 .token-reward {
+  flex: 1;
   color: #55efc4;
+  text-align: right;
+  font-size: 0.8rem;
 }
 
 .token-fund {
+  flex: 1;
   color: #ffeaa7;
-  min-width: 100px;
   text-align: right;
+  font-size: 0.8rem;
 }
 
 .stats p {
