@@ -522,12 +522,12 @@ function App() {
             {/* Eligibility Status */}
             {!meditating && !stats.isMeditating && eligibility.todaySessions > 0 && (
               <div className={`eligibility ${eligibility.canGetReward ? 'eligible' : 'waiting'}`}>
-                {eligibility.canGetReward 
-                  ? '✓ พร้อมรับ Reward' 
+                {eligibility.canGetReward
+                  ? '✓ พร้อมรับ Reward'
                   : `⏳ ต้องรออีก ${fmtTime(eligibility.secondsUntilReward)} ถึงจะได้รับ Reward`}
               </div>
             )}
-            {!meditating && secondsLeft === MEDITATION_SECONDS && !stats.isMeditating && (
+            {!meditating && !stats.isMeditating && (
               <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract || !stats.canClaim}>
                 {stats.canClaim ? 'เริ่มทำสมาธิ' : 'ครบ 3 ครั้งวันนี้แล้ว'}
               </button>
@@ -535,6 +535,14 @@ function App() {
             {meditating && secondsLeft === 0 && (
               <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
                 ยืนยันรับ Reward
+              </button>
+            )}
+            {meditating && secondsLeft > 0 && (
+              <p className="timer-label">กำลังทำสมาธิ... อย่าออกจากหน้านี้</p>
+            )}
+            {!meditating && stats.isMeditating && (
+              <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
+                ยืนยันรับ Reward (ค้างจากรอบก่อน)
               </button>
             )}
             {cheated && (
