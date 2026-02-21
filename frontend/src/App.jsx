@@ -657,26 +657,30 @@ function App() {
         </div>
       )}
 
-      {history.length > 0 && (
-        <div className="history-section">
-          <h3>ประวัติ ({history.length})</h3>
-          <div className="history-list">
-            {history.map((h, i) => (
-              <div key={i} className={`history-row ${h.result}`}>
-                <span className="history-date">{new Date(h.ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span>
-                <span className="history-time">{new Date(h.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
-                <span className="history-net">{h.net}</span>
-                <span className="history-result">
-                  {h.result === 'rewarded' ? `+${fmtBal(h.reward)} ${h.token}` : h.result === 'pending' ? 'pending' : 'บันทึก'}
-                </span>
-              </div>
-            ))}
-          </div>
-          <button className="btn-clear-history" onClick={() => { setHistory([]); localStorage.removeItem('jibjib_history') }}>
-            ล้างประวัติ
-          </button>
-        </div>
-      )}
+      <div className="history-section">
+        <h3>ประวัติ {history.length > 0 && `(${history.length})`}</h3>
+        {history.length === 0 ? (
+          <p className="history-empty">ยังไม่มีประวัติ — เริ่มทำสมาธิเลย!</p>
+        ) : (
+          <>
+            <div className="history-list">
+              {history.map((h, i) => (
+                <div key={i} className={`history-row ${h.result}`}>
+                  <span className="history-date">{new Date(h.ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span>
+                  <span className="history-time">{new Date(h.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="history-net">{h.net}</span>
+                  <span className="history-result">
+                    {h.result === 'rewarded' ? `+${fmtBal(h.reward)} ${h.token}` : h.result === 'pending' ? 'pending' : 'บันทึก'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button className="btn-clear-history" onClick={() => { setHistory([]); localStorage.removeItem('jibjib_history') }}>
+              ล้างประวัติ
+            </button>
+          </>
+        )}
+      </div>
 
       <footer>
         <p>{net.label} | JIBJIB Meditation Reward</p>

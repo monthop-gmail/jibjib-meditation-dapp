@@ -584,6 +584,11 @@ h1 {
 .history-row.pending .history-result { color: #fdcb6e; }
 .history-row.recorded .history-result { color: #636e72; }
 
+.history-empty {
+  color: #636e72;
+  font-size: 0.8rem;
+}
+
 .btn-clear-history {
   margin-top: 0.5rem;
   background: transparent;
