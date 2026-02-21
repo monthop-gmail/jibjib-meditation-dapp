@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useReducer } from 'react'
 import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 
 const IERC20_ABI = [
@@ -91,6 +91,74 @@ const HISTORY_MAX = 50
 
 const MEDITATION_SECONDS = 300
 
+// ── State Machine ───────────────────────────────────────────────────
+const initialMeditationState = {
+  phase: 'IDLE', // IDLE | CONNECTING | STARTING | MEDITATING | COMPLETING | COMPLETED | CHEATED | PENDING_COMPLETE | CLAIMING | DONATING
+  error: '',
+  loading: '',
+  completedMsg: '',
+}
+
+function meditationReducer(state, action) {
+  switch (action.type) {
+    case 'CONNECT_START':
+      return { phase: 'CONNECTING', loading: 'กำลังเชื่อมต่อ...', error: '', completedMsg: '' }
+    case 'CONNECT_SUCCESS':
+      return { ...state, phase: 'IDLE', loading: '' }
+    case 'CONNECT_FAIL':
+      return { ...state, phase: 'IDLE', loading: '', error: action.error }
+
+    case 'START_BEGIN':
+      return { phase: 'STARTING', loading: 'กำลังเริ่มทำสมาธิ...', error: '', completedMsg: '' }
+    case 'START_SUCCESS':
+      return { ...state, phase: 'MEDITATING', loading: '' }
+    case 'START_FAIL':
+      return { ...state, phase: 'IDLE', loading: '', error: action.error }
+
+    case 'CHEAT_DETECTED':
+      return { ...state, phase: 'CHEATED', loading: '', error: 'ตรวจพบว่าออกจากหน้าจอ กรุณาเริ่มทำสมาธิใหม่' }
+
+    case 'COMPLETE_BEGIN':
+      return { ...state, phase: 'COMPLETING', loading: 'กำลังยืนยัน...', error: '' }
+    case 'COMPLETE_SUCCESS':
+      return { phase: 'COMPLETED', loading: '', error: '', completedMsg: action.msg }
+    case 'COMPLETE_FAIL':
+      return { ...state, phase: 'IDLE', loading: '', error: action.error }
+
+    case 'RESUME_TIMER':
+      return { ...state, phase: 'MEDITATING' }
+    case 'PENDING_DETECTED':
+      return { ...state, phase: 'PENDING_COMPLETE' }
+    case 'SKIP_PENDING':
+      return { ...state, phase: 'COMPLETED', completedMsg: 'ข้ามไปก่อน — กลับมากดยืนยันได้ทุกเมื่อ' }
+
+    case 'CLAIM_BEGIN':
+      return { ...state, phase: 'CLAIMING', loading: 'กำลัง claim pending reward...', error: '' }
+    case 'CLAIM_SUCCESS':
+      return { phase: 'COMPLETED', loading: '', error: '', completedMsg: action.msg }
+    case 'CLAIM_FAIL':
+      return { ...state, phase: 'IDLE', loading: '', error: action.error }
+
+    case 'DONATE_BEGIN':
+      return { ...state, phase: 'DONATING', loading: action.loadingMsg || 'กำลังบริจาค...', error: '' }
+    case 'DONATE_SUCCESS':
+      return { phase: 'COMPLETED', loading: '', error: '', completedMsg: action.msg }
+    case 'DONATE_FAIL':
+      return { ...state, phase: 'IDLE', loading: '', error: action.error }
+
+    case 'SET_ERROR':
+      return { ...state, error: action.error }
+    case 'SET_LOADING':
+      return { ...state, loading: action.msg }
+    case 'RESET':
+      return { ...initialMeditationState }
+
+    default:
+      return state
+  }
+}
+
+// ── Component ───────────────────────────────────────────────────────
 function App() {
   const [network, setNetwork] = useState(() => {
     const saved = localStorage.getItem('jibjib_network')
@@ -103,12 +171,6 @@ function App() {
   const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
   const [eligibility, setEligibility] = useState({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
   const [secondsLeft, setSecondsLeft] = useState(MEDITATION_SECONDS)
-  const [meditating, setMeditating] = useState(false)
-  const [loading, setLoading] = useState('')
-  const [error, setError] = useState('')
-  const [cheated, setCheated] = useState(false)
-  const [completed, setCompleted] = useState(false)
-  const [completedMsg, setCompletedMsg] = useState('')
   const [rewardAmounts, setRewardAmounts] = useState({})
   const [pendingRewards, setPendingRewards] = useState({})
   const [fundBalances, setFundBalances] = useState({})
@@ -117,10 +179,12 @@ function App() {
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('jibjib_history') || '[]') } catch { return [] }
   })
+  const [mState, dispatch] = useReducer(meditationReducer, initialMeditationState)
   const timerRef = useRef(null)
 
   const net = NETWORKS[network] || NETWORKS.jbchain
   const selectedToken = net.tokens[selectedTokenIdx] || net.tokens[0]
+  const isLocked = ['STARTING', 'MEDITATING', 'COMPLETING', 'CONNECTING', 'CLAIMING', 'DONATING'].includes(mState.phase)
 
   // Cleanup timer on unmount + listen for account/chain changes
   useEffect(() => {
@@ -128,8 +192,8 @@ function App() {
     if (!eth) return () => clearInterval(timerRef.current)
     const disconnect = () => {
       clearInterval(timerRef.current)
-      setMeditating(false)
       setSecondsLeft(MEDITATION_SECONDS)
+      dispatch({ type: 'RESET' })
       setAccount(null)
       setContract(null)
       setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
@@ -150,26 +214,24 @@ function App() {
 
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
-    if (!meditating) return
+    if (mState.phase !== 'MEDITATING') return
     const handleVisibility = () => {
       if (document.hidden) {
-        setCheated(true)
         clearInterval(timerRef.current)
-        setMeditating(false)
-        setError('ตรวจพบว่าออกจากหน้าจอ กรุณาเริ่มทำสมาธิใหม่')
+        dispatch({ type: 'CHEAT_DETECTED' })
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [meditating])
+  }, [mState.phase])
 
   // Resume timer if contract says isMeditating (e.g. after page refresh)
   useEffect(() => {
-    if (!stats.isMeditating || meditating || !stats.lastSessionTime) return
+    if (!stats.isMeditating || !stats.lastSessionTime) return
+    if (mState.phase !== 'IDLE') return
     const elapsed = Math.floor(Date.now() / 1000) - stats.lastSessionTime
     const remaining = Math.max(0, MEDITATION_SECONDS - elapsed)
     if (remaining > 0) {
-      setMeditating(true)
       setSecondsLeft(remaining)
       clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {
@@ -178,9 +240,11 @@ function App() {
           return prev - 1
         })
       }, 1000)
+      dispatch({ type: 'RESUME_TIMER' })
+    } else {
+      dispatch({ type: 'PENDING_DETECTED' })
     }
-    // if remaining <= 0, shows complete button (correct — time is up)
-  }, [stats.isMeditating, stats.lastSessionTime, meditating])
+  }, [stats.isMeditating, stats.lastSessionTime, mState.phase])
 
   const loadStats = useCallback(async (c, addr) => {
     try {
@@ -194,11 +258,10 @@ function App() {
       })
     } catch (err) {
       console.error('getUserStats failed:', err.message, 'contract:', c.target, 'addr:', addr)
-      setError(`ดึงข้อมูลไม่ได้ — ลอง Hard Refresh (Ctrl+Shift+R) หรือเปลี่ยน network แล้วกลับมา`)
+      dispatch({ type: 'SET_ERROR', error: 'ดึงข้อมูลไม่ได้ — ลอง Hard Refresh (Ctrl+Shift+R) หรือเปลี่ยน network แล้วกลับมา' })
       return
     }
 
-    // Get reward eligibility
     try {
       const [canGetReward, secondsUntilReward, todaySessions, isMeditating] = await c.getRewardEligibility(addr)
       setEligibility({
@@ -209,7 +272,6 @@ function App() {
       })
     } catch (err) {
       console.error('getRewardEligibility failed:', err.message)
-      // Fallback: assume can get reward if canClaim is true
       setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: stats.todaySessions, isMeditating: stats.isMeditating })
     }
 
@@ -235,7 +297,6 @@ function App() {
         balances[token.symbol] = '0'
       }
 
-      // Wallet balance
       try {
         if (token.address === '0x0000000000000000000000000000000000000000') {
           const bal = await provider.getBalance(addr)
@@ -257,17 +318,12 @@ function App() {
   }, [net.tokens])
 
   function switchNetwork(key) {
-    if (meditating) {
-      clearInterval(timerRef.current)
-      setMeditating(false)
-      setSecondsLeft(MEDITATION_SECONDS)
-    }
+    clearInterval(timerRef.current)
+    setSecondsLeft(MEDITATION_SECONDS)
+    dispatch({ type: 'RESET' })
     localStorage.setItem('jibjib_network', key)
     setNetwork(key)
     setSelectedTokenIdx(0)
-    setError('')
-    setCompleted(false)
-    setCompletedMsg('')
     setRewardAmounts({})
     setPendingRewards({})
     setFundBalances({})
@@ -279,31 +335,27 @@ function App() {
   }
 
   async function connectWallet() {
-    setError('')
     const ethereum = window.ethereum
     if (!ethereum) {
-      setError('ไม่พบ Wallet — กรุณาติดตั้ง MetaMask หรือใช้ Brave Wallet')
+      dispatch({ type: 'SET_ERROR', error: 'ไม่พบ Wallet — กรุณาติดตั้ง MetaMask หรือใช้ Brave Wallet' })
       return
     }
-
     const contractAddress = net.contract
     if (!contractAddress) {
-      setError(`ยังไม่มี Contract บน ${net.label} — กรุณาเลือก network อื่น`)
+      dispatch({ type: 'SET_ERROR', error: `ยังไม่มี Contract บน ${net.label} — กรุณาเลือก network อื่น` })
       return
     }
 
+    dispatch({ type: 'CONNECT_START' })
     try {
-      setLoading('กำลังเชื่อมต่อ...')
       await ethereum.request({ method: 'eth_requestAccounts' })
 
-      // Switch to selected network
       try {
         await ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: net.chainId }],
         })
       } catch (switchErr) {
-        // 4902 = chain not added (MetaMask), also handle Brave/other wallets
         if (switchErr.code === 4902 || switchErr.code === -32603) {
           try {
             await ethereum.request({
@@ -316,97 +368,85 @@ function App() {
                 blockExplorerUrls: net.blockExplorerUrls,
               }],
             })
-          } catch (addErr) {
-            setError(`เพิ่ม ${net.label} ไม่สำเร็จ — กรุณาเพิ่ม network ใน Wallet เอง`)
-            setLoading('')
+          } catch {
+            dispatch({ type: 'CONNECT_FAIL', error: `เพิ่ม ${net.label} ไม่สำเร็จ — กรุณาเพิ่ม network ใน Wallet เอง` })
             return
           }
         } else if (switchErr.code === 4001) {
-          setError('ผู้ใช้ปฏิเสธการเปลี่ยน network')
-          setLoading('')
+          dispatch({ type: 'CONNECT_FAIL', error: 'ผู้ใช้ปฏิเสธการเปลี่ยน network' })
           return
         } else {
-          setError(`เชื่อมต่อ ${net.label} ไม่สำเร็จ: ${switchErr.message || 'ลองเพิ่ม network เอง'}`)
-          setLoading('')
+          dispatch({ type: 'CONNECT_FAIL', error: `เชื่อมต่อ ${net.label} ไม่สำเร็จ: ${switchErr.message || 'ลองเพิ่ม network เอง'}` })
           return
         }
       }
 
-      // Re-create provider after chain switch for compatibility
       const provider = new BrowserProvider(ethereum)
       const signer = await provider.getSigner()
       const addr = await signer.getAddress()
       const c = new Contract(contractAddress, CONTRACT_ABI, signer)
       setContract(c)
       setAccount(addr)
+      dispatch({ type: 'CONNECT_SUCCESS' })
       await loadStats(c, addr)
     } catch (err) {
-      setError(err.message || 'เชื่อมต่อไม่สำเร็จ')
-    } finally {
-      setLoading('')
+      dispatch({ type: 'CONNECT_FAIL', error: err.message || 'เชื่อมต่อไม่สำเร็จ' })
     }
+  }
+
+  function startTimer(seconds) {
+    setSecondsLeft(seconds)
+    clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) { clearInterval(timerRef.current); return 0 }
+        return prev - 1
+      })
+    }, 1000)
   }
 
   async function handleStart() {
     if (!contract) return
-    setError('')
-    setCheated(false)
-    setCompleted(false)
-    setCompletedMsg('')
+    dispatch({ type: 'START_BEGIN' })
     try {
-      setLoading('กำลังเริ่มทำสมาธิ...')
       const tx = await contract.startMeditation()
       await tx.wait()
-      setMeditating(true)
-      setSecondsLeft(MEDITATION_SECONDS)
-
-      timerRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
+      startTimer(MEDITATION_SECONDS)
+      dispatch({ type: 'START_SUCCESS' })
     } catch (err) {
-      setError(err.reason || err.message || 'เริ่มทำสมาธิไม่สำเร็จ')
-    } finally {
-      setLoading('')
+      dispatch({ type: 'START_FAIL', error: err.reason || err.message || 'เริ่มทำสมาธิไม่สำเร็จ' })
     }
   }
 
   async function handleComplete() {
     if (!contract) return
-    setError('')
+    dispatch({ type: 'COMPLETE_BEGIN' })
     try {
-      setLoading('กำลังยืนยัน...')
       const tx = await contract.completeMeditation(selectedToken.address)
       const receipt = await tx.wait()
 
-      setMeditating(false)
-      setCompleted(true)
       clearInterval(timerRef.current)
       setSecondsLeft(MEDITATION_SECONDS)
 
       const completedTopic = contract.interface.getEvent('MeditationCompleted').topicHash
       const pendingTopic = contract.interface.getEvent('PendingRewardStored').topicHash
-      const recordedTopic = contract.interface.getEvent('MeditationRecorded').topicHash
 
       const hasCompleted = receipt.logs.some(log => log.topics[0] === completedTopic)
       const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
       const reward = rewardAmounts[selectedToken.symbol] || '0'
 
-      let result = 'recorded'
+      let msg, result = 'recorded'
       if (hasCompleted) {
-        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`)
+        msg = `ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`
         result = 'rewarded'
       } else if (hasPending) {
-        setCompletedMsg('ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund')
+        msg = 'ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund'
         result = 'pending'
       } else {
-        setCompletedMsg('บันทึกสำเร็จ! (ยังไม่ถึงเวลารับ Reward)')
+        msg = 'บันทึกสำเร็จ! (ยังไม่ถึงเวลารับ Reward)'
       }
+
+      dispatch({ type: 'COMPLETE_SUCCESS', msg })
 
       const entry = { ts: Date.now(), net: net.label, token: selectedToken.symbol, reward, result }
       setHistory(prev => {
@@ -417,27 +457,21 @@ function App() {
 
       await loadStats(contract, account)
     } catch (err) {
-      setError(err.reason || err.message || 'ยืนยันไม่สำเร็จ')
-    } finally {
-      setLoading('')
+      dispatch({ type: 'COMPLETE_FAIL', error: err.reason || err.message || 'ยืนยันไม่สำเร็จ' })
     }
   }
 
   async function handleClaimPending() {
     if (!contract) return
-    setError('')
+    dispatch({ type: 'CLAIM_BEGIN' })
     try {
-      setLoading('กำลัง claim pending reward...')
       const tx = await contract.claimPendingReward(selectedToken.address)
       await tx.wait()
       const pending = pendingRewards[selectedToken.symbol] || '0'
-      setCompletedMsg(`Claim สำเร็จ! ได้รับ ${fmtBal(pending)} ${selectedToken.symbol}`)
-      setCompleted(true)
+      dispatch({ type: 'CLAIM_SUCCESS', msg: `Claim สำเร็จ! ได้รับ ${fmtBal(pending)} ${selectedToken.symbol}` })
       await loadStats(contract, account)
     } catch (err) {
-      setError(err.reason || err.message || 'Claim ไม่สำเร็จ')
-    } finally {
-      setLoading('')
+      dispatch({ type: 'CLAIM_FAIL', error: err.reason || err.message || 'Claim ไม่สำเร็จ' })
     }
   }
 
@@ -446,43 +480,38 @@ function App() {
     if (!contract) return
     const amount = e.target.elements.donateAmount.value
     if (!amount || Number(amount) <= 0) {
-      setError('กรุณาใส่จำนวนที่ถูกต้อง')
+      dispatch({ type: 'SET_ERROR', error: 'กรุณาใส่จำนวนที่ถูกต้อง' })
       return
     }
-    setError('')
+
+    dispatch({ type: 'DONATE_BEGIN', loadingMsg: 'กำลังบริจาค...' })
     try {
       const parsedAmount = parseEther(amount)
       let tx
 
       if (token.address === '0x0000000000000000000000000000000000000000') {
-        // Native token: send value
-        setLoading('กำลังบริจาค...')
         tx = await contract.donate(token.address, 0, { value: parsedAmount })
       } else {
-        // ERC20 token: check allowance and approve if needed
         const signer = await new BrowserProvider(window.ethereum).getSigner()
         const erc20 = new Contract(token.address, IERC20_ABI, signer)
         const allowance = await erc20.allowance(account, net.contract)
 
         if (allowance < parsedAmount) {
-          setLoading(`กำลัง approve ${token.symbol}...`)
+          dispatch({ type: 'SET_LOADING', msg: `กำลัง approve ${token.symbol}...` })
           const approveTx = await erc20.approve(net.contract, parsedAmount)
           await approveTx.wait()
         }
 
-        setLoading('กำลังบริจาค...')
+        dispatch({ type: 'SET_LOADING', msg: 'กำลังบริจาค...' })
         tx = await contract.donate(token.address, parsedAmount)
       }
 
       await tx.wait()
-      setCompletedMsg(`บริจาค ${amount} ${token.symbol} สำเร็จ!`)
-      setCompleted(true)
+      dispatch({ type: 'DONATE_SUCCESS', msg: `บริจาค ${amount} ${token.symbol} สำเร็จ!` })
       e.target.elements.donateAmount.value = ''
       await loadStats(contract, account)
     } catch (err) {
-      setError(err.reason || err.message || 'บริจาคไม่สำเร็จ')
-    } finally {
-      setLoading('')
+      dispatch({ type: 'DONATE_FAIL', error: err.reason || err.message || 'บริจาคไม่สำเร็จ' })
     }
   }
 
@@ -501,7 +530,7 @@ function App() {
             key={n.key}
             className={`network-btn ${network === n.key ? 'active' : ''} ${!n.contract ? 'no-contract' : ''}`}
             onClick={() => switchNetwork(n.key)}
-            disabled={meditating}
+            disabled={isLocked}
           >
             {n.label}
             {!n.contract && <span className="soon-badge">เร็วๆนี้</span>}
@@ -513,10 +542,10 @@ function App() {
       {net.tokens.length > 1 && (
         <div className="token-selector">
           <label>เลือก Token ที่จะใช้:</label>
-          <select 
-            value={selectedTokenIdx} 
+          <select
+            value={selectedTokenIdx}
             onChange={(e) => setSelectedTokenIdx(Number(e.target.value))}
-            disabled={meditating || account === null}
+            disabled={isLocked || account === null}
           >
             {net.tokens.map((t, i) => (
               <option key={i} value={i}>{t.name}</option>
@@ -525,12 +554,12 @@ function App() {
         </div>
       )}
 
-      {error && <div className="error">{error}</div>}
-      {loading && <div className="loading">{loading}</div>}
-      {completed && <div className="success">{completedMsg}</div>}
+      {mState.error && <div className="error">{mState.error}</div>}
+      {mState.loading && <div className="loading">{mState.loading}</div>}
+      {mState.phase === 'COMPLETED' && <div className="success">{mState.completedMsg}</div>}
 
       {!account ? (
-        <button className="btn btn-connect" onClick={connectWallet} disabled={!!loading}>
+        <button className="btn btn-connect" onClick={connectWallet} disabled={!!mState.loading}>
           เชื่อมต่อ Wallet
         </button>
       ) : (
@@ -550,48 +579,46 @@ function App() {
             <div className="timer-display">
               {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
             </div>
-            {meditating && <p className="timer-label">กำลังทำสมาธิ... อย่าออกจากหน้านี้</p>}
           </div>
 
           <div className="actions">
             {/* Eligibility Status */}
-            {!meditating && !stats.isMeditating && eligibility.todaySessions > 0 && (
+            {mState.phase === 'IDLE' && !stats.isMeditating && eligibility.todaySessions > 0 && (
               <div className={`eligibility ${eligibility.canGetReward ? 'eligible' : 'waiting'}`}>
                 {eligibility.canGetReward
                   ? '✓ พร้อมรับ Reward'
                   : `⏳ ต้องรออีก ${fmtTime(eligibility.secondsUntilReward)} ถึงจะได้รับ Reward`}
               </div>
             )}
-            {!meditating && !stats.isMeditating && (
-              <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract || !stats.canClaim}>
+            {mState.phase === 'IDLE' && !stats.isMeditating && (
+              <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract || !stats.canClaim}>
                 {stats.canClaim ? 'เริ่มทำสมาธิ' : 'ครบ 3 ครั้งวันนี้แล้ว'}
               </button>
             )}
-            {meditating && secondsLeft === 0 && (
-              <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
+            {mState.phase === 'MEDITATING' && secondsLeft === 0 && (
+              <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
                 ยืนยันรับ Reward
               </button>
             )}
-            {meditating && secondsLeft > 0 && (
+            {mState.phase === 'MEDITATING' && secondsLeft > 0 && (
               <p className="timer-label">กำลังทำสมาธิ... อย่าออกจากหน้านี้</p>
             )}
-            {!meditating && stats.isMeditating && (
+            {mState.phase === 'PENDING_COMPLETE' && (
               <div className="pending-complete">
                 <p className="pending-notice">มีสมาธิค้างจากรอบก่อน</p>
-                <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
+                <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
                   ยืนยันรับ Reward
                 </button>
                 <button className="btn btn-skip" onClick={() => {
                   setStats(s => ({ ...s, isMeditating: false }))
-                  setCompletedMsg('ข้ามไปก่อน — กลับมากดยืนยันได้ทุกเมื่อ')
-                  setCompleted(true)
-                }} disabled={!!loading}>
+                  dispatch({ type: 'SKIP_PENDING' })
+                }} disabled={!!mState.loading}>
                   ไว้ทีหลัง
                 </button>
               </div>
             )}
-            {cheated && (
-              <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract}>
+            {mState.phase === 'CHEATED' && (
+              <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract}>
                 เริ่มใหม่
               </button>
             )}
@@ -601,7 +628,7 @@ function App() {
           {Number(pendingRewards[selectedToken.symbol] || 0) > 0 && (
             <div className="pending-section">
               <p>Pending Reward: <strong>{fmtBal(pendingRewards[selectedToken.symbol])} {selectedToken.symbol}</strong></p>
-              <button className="btn btn-claim" onClick={handleClaimPending} disabled={!!loading}>
+              <button className="btn btn-claim" onClick={handleClaimPending} disabled={!!mState.loading}>
                 Claim Pending Reward
               </button>
             </div>
@@ -666,7 +693,7 @@ function App() {
                       min="0"
                       placeholder={token.symbol}
                     />
-                    <button type="submit" className="btn btn-donate-sm" disabled={!!loading || !contract}>
+                    <button type="submit" className="btn btn-donate-sm" disabled={!!mState.loading || !contract}>
                       +
                     </button>
                   </form>
