@@ -15,7 +15,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-l1.jibchain.net'],
     nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
     blockExplorerUrls: ['https://exp-l1.jibchain.net'],
-    contract: '0x5234C5baD4819Cf70a39d87696dfB3e0e1eAFcaF',
+    contract: '0x740ff5b8646c7feb3f46A475a33A992DC2CCC5c8',
     tokens: [
       { address: '0xebe937ee67e3219d176965cc08110a258f925e01', symbol: 'JIBJIB', name: 'JIBJIB' },
       { address: '0x440bb674a2e443d600396a69c4c46362148699a2', symbol: 'JIBJIB C', name: 'JIBJIB C' },
