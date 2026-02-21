@@ -115,26 +115,36 @@ function App() {
         todaySessions: Number(todaySessions),
         canClaim,
       })
+    } catch (err) {
+      console.error('getUserStats failed:', err.message)
+      setError('ไม่สามารถดึงข้อมูลจาก Contract ได้ — อาจเป็น Contract ผิด')
+      return
+    }
 
-      const rewardAmounts = {}
-      const pendingRewards = {}
-      const fundBalances = {}
+    const rewards = {}
+    const pendings = {}
+    const balances = {}
 
-      for (const token of net.tokens) {
+    for (const token of net.tokens) {
+      try {
         const [reward, pending, balance] = await Promise.all([
           c.getRewardAmount(token.address),
           c.getPendingReward(addr, token.address),
           c.getTokenBalance(token.address),
         ])
-        rewardAmounts[token.symbol] = formatEther(reward)
-        pendingRewards[token.symbol] = formatEther(pending)
-        fundBalances[token.symbol] = formatEther(balance)
+        rewards[token.symbol] = formatEther(reward)
+        pendings[token.symbol] = formatEther(pending)
+        balances[token.symbol] = formatEther(balance)
+      } catch {
+        rewards[token.symbol] = '0'
+        pendings[token.symbol] = '0'
+        balances[token.symbol] = '0'
       }
+    }
 
-      setRewardAmounts(rewardAmounts)
-      setPendingRewards(pendingRewards)
-      setFundBalances(fundBalances)
-    } catch { /* ignore */ }
+    setRewardAmounts(rewards)
+    setPendingRewards(pendings)
+    setFundBalances(balances)
   }, [net.tokens])
 
   function switchNetwork(key) {
