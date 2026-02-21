@@ -32,8 +32,66 @@ h1 {
 
 .subtitle {
   color: #8e99a4;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   font-size: 0.95rem;
+}
+
+.network-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.network-btn {
+  position: relative;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: #8e99a4;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.network-btn:hover:not(:disabled) {
+  border-color: rgba(162, 155, 254, 0.4);
+  color: #a29bfe;
+}
+
+.network-btn.active {
+  border-color: #a29bfe;
+  background: rgba(162, 155, 254, 0.15);
+  color: #a29bfe;
+  font-weight: 600;
+}
+
+.network-btn.no-contract {
+  opacity: 0.6;
+}
+
+.network-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.soon-badge {
+  display: block;
+  font-size: 0.6rem;
+  color: #fdcb6e;
+  margin-top: 0.15rem;
+}
+
+.network-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(162, 155, 254, 0.2);
+  font-size: 0.7rem;
+  color: #a29bfe;
+  font-family: sans-serif;
 }
 
 .error {
@@ -159,6 +217,12 @@ h1 {
   color: #e0e0e0;
   font-size: 0.85rem;
   font-family: monospace;
+}
+
+.contract-address {
+  color: #636e72;
+  font-family: monospace;
+  font-size: 0.75rem;
 }
 
 .timer {

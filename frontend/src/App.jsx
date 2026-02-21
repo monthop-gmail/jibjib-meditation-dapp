@@ -1,16 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 
-const KUB_TESTNET = {
-  chainId: '0x6545',
-  chainName: 'KUB Testnet',
-  rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
-  nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
-  blockExplorerUrls: ['https://testnet.kubscan.com'],
+const NETWORKS = {
+  l1: {
+    key: 'l1',
+    label: 'KUB Testnet (L1)',
+    chainId: '0x6545',
+    chainName: 'KUB Testnet',
+    rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
+    nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
+    blockExplorerUrls: ['https://testnet.kubscan.com'],
+    contract: '0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064',
+  },
+  l2: {
+    key: 'l2',
+    label: 'KUB Layer 2 Testnet',
+    chainId: '0x3F4B3',
+    chainName: 'KUB Layer 2 Testnet',
+    rpcUrls: ['https://kublayer2.testnet.kubchain.io'],
+    nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
+    blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
+    contract: '', // TODO: deploy to L2
+  },
 }
 
 const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'
-const DEFAULT_CONTRACT = '0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064'
 
 const CONTRACT_ABI = [
   'function startMeditation() external',
@@ -28,6 +42,7 @@ const CONTRACT_ABI = [
 const MEDITATION_SECONDS = 300
 
 function App() {
+  const [network, setNetwork] = useState(() => localStorage.getItem('jibjib_network') || 'l1')
   const [account, setAccount] = useState(null)
   const [contract, setContract] = useState(null)
   const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
@@ -43,6 +58,8 @@ function App() {
   const [fundBalance, setFundBalance] = useState('0')
   const [donateAmount, setDonateAmount] = useState('')
   const timerRef = useRef(null)
+
+  const net = NETWORKS[network]
 
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
@@ -80,40 +97,67 @@ function App() {
     } catch { /* ignore */ }
   }, [])
 
+  function switchNetwork(key) {
+    if (meditating) return
+    localStorage.setItem('jibjib_network', key)
+    setNetwork(key)
+    // Disconnect and reset state so user reconnects on new network
+    setAccount(null)
+    setContract(null)
+    setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+    setRewardAmount('0')
+    setPendingReward('0')
+    setFundBalance('0')
+    setError('')
+    setCompleted(false)
+    setCompletedMsg('')
+  }
+
   async function connectWallet() {
     setError('')
     if (!window.ethereum) {
       setError('กรุณาติดตั้ง MetaMask')
       return
     }
+
+    const contractAddress = net.contract
+    if (!contractAddress) {
+      setError(`ยังไม่มี Contract บน ${net.label} — กรุณาเลือก network อื่น`)
+      return
+    }
+
     try {
       setLoading('กำลังเชื่อมต่อ...')
       const provider = new BrowserProvider(window.ethereum)
-      const accounts = await provider.send('eth_requestAccounts', [])
+      await provider.send('eth_requestAccounts', [])
 
-      // Switch to KUB Testnet
+      // Switch to selected network
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: KUB_TESTNET.chainId }],
+          params: [{ chainId: net.chainId }],
         })
       } catch (switchErr) {
         if (switchErr.code === 4902) {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
-            params: [KUB_TESTNET],
+            params: [{
+              chainId: net.chainId,
+              chainName: net.chainName,
+              rpcUrls: net.rpcUrls,
+              nativeCurrency: net.nativeCurrency,
+              blockExplorerUrls: net.blockExplorerUrls,
+            }],
           })
         } else {
-          setError('เชื่อมต่อ KUB Testnet ไม่สำเร็จ')
+          setError(`เชื่อมต่อ ${net.label} ไม่สำเร็จ`)
           setLoading('')
           return
         }
       }
 
       const signer = await provider.getSigner()
-      const addr = accounts[0]
-      const contractAddress = localStorage.getItem('jibjib_contract') || DEFAULT_CONTRACT
-      localStorage.setItem('jibjib_contract', contractAddress)
+      const addr = await signer.getAddress()
       const c = new Contract(contractAddress, CONTRACT_ABI, signer)
       setContract(c)
       setAccount(addr)
@@ -220,22 +264,28 @@ function App() {
     }
   }
 
-  function saveContractAddress(e) {
-    e.preventDefault()
-    const addr = e.target.elements.addr.value.trim()
-    if (addr) {
-      localStorage.setItem('jibjib_contract', addr)
-      window.location.reload()
-    }
-  }
-
   const minutes = Math.floor(secondsLeft / 60)
   const seconds = secondsLeft % 60
 
   return (
     <div className="app">
-      <h1>🧘 JIBJIB Meditation</h1>
-      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน KUB Testnet</p>
+      <h1>JIBJIB Meditation</h1>
+      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน KUB Chain</p>
+
+      {/* Network Selector */}
+      <div className="network-selector">
+        {Object.values(NETWORKS).map(n => (
+          <button
+            key={n.key}
+            className={`network-btn ${network === n.key ? 'active' : ''} ${!n.contract ? 'no-contract' : ''}`}
+            onClick={() => switchNetwork(n.key)}
+            disabled={meditating}
+          >
+            {n.label}
+            {!n.contract && <span className="soon-badge">เร็วๆนี้</span>}
+          </button>
+        ))}
+      </div>
 
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">{loading}</div>}
@@ -249,18 +299,14 @@ function App() {
         <div className="main">
           <div className="account">
             {account.slice(0, 6)}...{account.slice(-4)}
+            <span className="network-badge">{net.label}</span>
           </div>
 
-          {!localStorage.getItem('jibjib_contract') && (
-            <form className="contract-form" onSubmit={saveContractAddress}>
-              <input name="addr" placeholder="Contract Address (0x...)" />
-              <button type="submit" className="btn btn-sm">บันทึก</button>
-            </form>
+          {net.contract && (
+            <div className="contract-address">
+              <small>Contract: {net.contract.slice(0, 10)}...{net.contract.slice(-4)}</small>
+            </div>
           )}
-
-          <div className="contract-address">
-            <small>Contract: {DEFAULT_CONTRACT.slice(0, 10)}...</small>
-          </div>
 
           <div className="timer">
             <div className="timer-display">
@@ -341,7 +387,7 @@ function App() {
       )}
 
       <footer>
-        <p>KUB Testnet (Chain ID: 25925) | JIBJIB Meditation Reward</p>
+        <p>{net.label} | JIBJIB Meditation Reward</p>
       </footer>
     </div>
   )
