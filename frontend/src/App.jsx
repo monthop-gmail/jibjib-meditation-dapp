@@ -16,7 +16,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-l1.jibchain.net'],
     nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
     blockExplorerUrls: ['https://exp-l1.jibchain.net'],
-    contract: '0x81916861dCe173FE55B28d51088C3F3fb68975b6',
+    contract: '0x4F17Cd4b8a1BbcB44560BD5ee5c29f277716d0bc',
     tokens: [
       { address: '0xebe937ee67e3219d176965cc08110a258f925e01', symbol: 'JIBJIB', name: 'JIBJIB' },
       { address: '0x440bb674a2e443d600396a69c4c46362148699a2', symbol: 'JIBJIB C', name: 'JIBJIB C' },
@@ -31,7 +31,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
     nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
     blockExplorerUrls: ['https://testnet.kubscan.com'],
-    contract: '0xFaaCCa7830b49e55b37DEE74FD9BB68a283181CC',
+    contract: '0x46210e130dA5cCA4ec68713F4E5A429010d95860',
     tokens: [
       { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
     ],

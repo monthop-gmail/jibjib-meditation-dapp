@@ -92,10 +92,8 @@ contract MeditationReward {
         bool eligible = true;
         if (dailySessions[user] >= 3) {
             eligible = false;
-        } else if (dailySessions[user] > 0) {
-            if (block.timestamp - lastRewardedTime[user] < SESSION_GAP) {
-                eligible = false;
-            }
+        } else if (lastRewardedTime[user] > 0 && block.timestamp - lastRewardedTime[user] < SESSION_GAP) {
+            eligible = false;
         }
 
         if (!eligible) {
@@ -147,10 +145,8 @@ contract MeditationReward {
 
         if (dailySessions[msg.sender] >= 3) {
             eligible = false;
-        } else if (dailySessions[msg.sender] > 0) {
-            if (block.timestamp - lastRewardedTime[msg.sender] < SESSION_GAP) {
-                eligible = false;
-            }
+        } else if (lastRewardedTime[msg.sender] > 0 && block.timestamp - lastRewardedTime[msg.sender] < SESSION_GAP) {
+            eligible = false;
         }
 
         if (!eligible) {
