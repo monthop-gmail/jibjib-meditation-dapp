@@ -117,9 +117,30 @@ function App() {
   const net = NETWORKS[network] || NETWORKS.jbchain
   const selectedToken = net.tokens[selectedTokenIdx] || net.tokens[0]
 
-  // Cleanup timer on unmount
+  // Cleanup timer on unmount + listen for account/chain changes
   useEffect(() => {
-    return () => clearInterval(timerRef.current)
+    const eth = window.ethereum
+    if (!eth) return () => clearInterval(timerRef.current)
+    const disconnect = () => {
+      clearInterval(timerRef.current)
+      setMeditating(false)
+      setSecondsLeft(MEDITATION_SECONDS)
+      setAccount(null)
+      setContract(null)
+      setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+      setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
+      setRewardAmounts({})
+      setPendingRewards({})
+      setFundBalances({})
+      setWalletBalances({})
+    }
+    eth.on('accountsChanged', disconnect)
+    eth.on('chainChanged', disconnect)
+    return () => {
+      clearInterval(timerRef.current)
+      eth.removeListener('accountsChanged', disconnect)
+      eth.removeListener('chainChanged', disconnect)
+    }
   }, [])
 
   // Anti-cheat: detect tab switch / minimize
