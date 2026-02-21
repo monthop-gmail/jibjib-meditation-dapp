@@ -101,8 +101,8 @@ function App() {
   const [walletBalances, setWalletBalances] = useState({})
   const timerRef = useRef(null)
 
-  const net = NETWORKS[network]
-  const selectedToken = net.tokens[selectedTokenIdx]
+  const net = NETWORKS[network] || NETWORKS.jbchain
+  const selectedToken = net.tokens[selectedTokenIdx] || net.tokens[0]
 
   // Cleanup timer on unmount
   useEffect(() => {
