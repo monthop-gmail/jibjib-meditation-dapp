@@ -40,12 +40,10 @@ const NETWORKS = {
     blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
     contract: '',
     tokens: [
-      { address: '0x0000000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
+      { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
     ],
   },
 }
-
-
 
 const CONTRACT_ABI = [
   'function startMeditation() external',
@@ -142,6 +140,7 @@ function App() {
     setRewardAmounts({})
     setPendingRewards({})
     setFundBalances({})
+    setSelectedTokenIdx(0)
     setError('')
     setCompleted(false)
     setCompletedMsg('')
@@ -288,7 +287,14 @@ function App() {
     setError('')
     try {
       setLoading('กำลังบริจาค...')
-      const tx = await contract.donate(token.address, 0, { value: parseEther(amount) })
+      let tx
+      if (token.address === '0x0000000000000000000000000000000000000000') {
+        // Native token: send value
+        tx = await contract.donate(token.address, 0, { value: parseEther(amount) })
+      } else {
+        // ERC20 token: send amount (requires prior approval)
+        tx = await contract.donate(token.address, parseEther(amount))
+      }
       await tx.wait()
       setCompletedMsg(`บริจาค ${amount} ${token.symbol} สำเร็จ!`)
       setCompleted(true)
