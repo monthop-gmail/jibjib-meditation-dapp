@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 
-const KUB_L2_TESTNET = {
-  chainId: '0x3F4B3',
-  chainName: 'KUB Layer 2 Testnet',
-  rpcUrls: ['https://kublayer2.testnet.kubchain.io'],
+const KUB_TESTNET = {
+  chainId: '0x6545',
+  chainName: 'KUB Testnet',
+  rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
   nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
-  blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
+  blockExplorerUrls: ['https://testnet.kubscan.com'],
 }
 
 const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'
+const DEFAULT_CONTRACT = '0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064'
 
 const CONTRACT_ABI = [
   'function startMeditation() external',
@@ -90,20 +91,20 @@ function App() {
       const provider = new BrowserProvider(window.ethereum)
       const accounts = await provider.send('eth_requestAccounts', [])
 
-      // Switch to KUB L2 Testnet
+      // Switch to KUB Testnet
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: KUB_L2_TESTNET.chainId }],
+          params: [{ chainId: KUB_TESTNET.chainId }],
         })
       } catch (switchErr) {
         if (switchErr.code === 4902) {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
-            params: [KUB_L2_TESTNET],
+            params: [KUB_TESTNET],
           })
         } else {
-          setError('เชื่อมต่อ KUB L2 ไม่สำเร็จ: ' + (switchErr.message || 'ลองเพิ่ม network เอง'))
+          setError('เชื่อมต่อ KUB Testnet ไม่สำเร็จ')
           setLoading('')
           return
         }
@@ -111,13 +112,8 @@ function App() {
 
       const signer = await provider.getSigner()
       const addr = accounts[0]
-      const contractAddress = localStorage.getItem('jibjib_contract') || ''
-      if (!contractAddress) {
-        setAccount(addr)
-        setLoading('')
-        setError('ยังไม่ได้ตั้ง Contract Address กรุณาใส่ที่ช่องด้านล่าง')
-        return
-      }
+      const contractAddress = localStorage.getItem('jibjib_contract') || DEFAULT_CONTRACT
+      localStorage.setItem('jibjib_contract', contractAddress)
       const c = new Contract(contractAddress, CONTRACT_ABI, signer)
       setContract(c)
       setAccount(addr)
@@ -238,8 +234,8 @@ function App() {
 
   return (
     <div className="app">
-      <h1>JIBJIB Meditation</h1>
-      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน KUB L2</p>
+      <h1>🧘 JIBJIB Meditation</h1>
+      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน KUB Testnet</p>
 
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">{loading}</div>}
@@ -261,6 +257,10 @@ function App() {
               <button type="submit" className="btn btn-sm">บันทึก</button>
             </form>
           )}
+
+          <div className="contract-address">
+            <small>Contract: {DEFAULT_CONTRACT.slice(0, 10)}...</small>
+          </div>
 
           <div className="timer">
             <div className="timer-display">
@@ -341,7 +341,7 @@ function App() {
       )}
 
       <footer>
-        <p>KUB L2 Testnet (Chain ID: 259251) | JIBJIB Meditation Reward</p>
+        <p>KUB Testnet (Chain ID: 25925) | JIBJIB Meditation Reward</p>
       </footer>
     </div>
   )
