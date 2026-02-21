@@ -210,20 +210,12 @@ function App() {
     setWalletBalances(walletBals)
   }, [net.tokens])
 
-  // Auto-refresh stats every 30s
-  useEffect(() => {
-    if (!contract || !account || meditating) return
-    const id = setInterval(() => loadStats(contract, account), 30000)
-    return () => clearInterval(id)
-  }, [contract, account, meditating, loadStats])
-
-  async function switchNetwork(key) {
+  function switchNetwork(key) {
     if (meditating) {
       clearInterval(timerRef.current)
       setMeditating(false)
       setSecondsLeft(MEDITATION_SECONDS)
     }
-    const target = NETWORKS[key]
     localStorage.setItem('jibjib_network', key)
     setNetwork(key)
     setSelectedTokenIdx(0)
@@ -234,58 +226,10 @@ function App() {
     setPendingRewards({})
     setFundBalances({})
     setWalletBalances({})
-
-    if (!account || !window.ethereum || !target.contract) {
-      setAccount(null)
-      setContract(null)
-      setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
-      return
-    }
-
-    // Auto-switch chain in wallet
-    try {
-      setLoading(`กำลังเปลี่ยนไป ${target.label}...`)
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: target.chainId }],
-        })
-      } catch (switchErr) {
-        if (switchErr.code === 4902 || switchErr.code === -32603) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: target.chainId,
-              chainName: target.chainName,
-              rpcUrls: target.rpcUrls,
-              nativeCurrency: target.nativeCurrency,
-              blockExplorerUrls: target.blockExplorerUrls,
-            }],
-          })
-        } else if (switchErr.code === 4001) {
-          setError('ผู้ใช้ปฏิเสธการเปลี่ยน network')
-          setLoading('')
-          return
-        } else {
-          throw switchErr
-        }
-      }
-
-      const provider = new BrowserProvider(window.ethereum)
-      const signer = await provider.getSigner()
-      const addr = await signer.getAddress()
-      const c = new Contract(target.contract, CONTRACT_ABI, signer)
-      setContract(c)
-      setAccount(addr)
-      await loadStats(c, addr)
-    } catch (err) {
-      setError(`เปลี่ยน network ไม่สำเร็จ: ${err.message || ''}`)
-      setAccount(null)
-      setContract(null)
-      setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
-    } finally {
-      setLoading('')
-    }
+    setAccount(null)
+    setContract(null)
+    setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+    setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
   }
 
   async function connectWallet() {
