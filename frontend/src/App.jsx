@@ -64,6 +64,17 @@ const CONTRACT_ABI = [
   'function getSupportedTokens() external view returns (address[])',
 ]
 
+function fmtBal(val) {
+  const n = Number(val)
+  if (isNaN(n) || val === '-') return val
+  if (n === 0) return '0'
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  if (n >= 1) return n.toFixed(2)
+  if (n >= 0.001) return n.toFixed(4)
+  return n.toFixed(6)
+}
+
 const MEDITATION_SECONDS = 300
 
 function App() {
@@ -351,7 +362,7 @@ function App() {
       if (hasPending) {
         setCompletedMsg('ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund')
       } else {
-        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${reward} ${selectedToken.symbol}`)
+        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`)
       }
 
       await loadStats(contract, account)
@@ -370,7 +381,7 @@ function App() {
       const tx = await contract.claimPendingReward(selectedToken.address)
       await tx.wait()
       const pending = pendingRewards[selectedToken.symbol] || '0'
-      setCompletedMsg(`Claim สำเร็จ! ได้รับ ${pending} ${selectedToken.symbol}`)
+      setCompletedMsg(`Claim สำเร็จ! ได้รับ ${fmtBal(pending)} ${selectedToken.symbol}`)
       setCompleted(true)
       await loadStats(contract, account)
     } catch (err) {
@@ -510,7 +521,7 @@ function App() {
           {/* Pending Reward */}
           {Number(pendingRewards[selectedToken.symbol] || 0) > 0 && (
             <div className="pending-section">
-              <p>Pending Reward: <strong>{pendingRewards[selectedToken.symbol]} {selectedToken.symbol}</strong></p>
+              <p>Pending Reward: <strong>{fmtBal(pendingRewards[selectedToken.symbol])} {selectedToken.symbol}</strong></p>
               <button className="btn btn-claim" onClick={handleClaimPending} disabled={!!loading}>
                 Claim Pending Reward
               </button>
@@ -542,9 +553,9 @@ function App() {
               {net.tokens.map(token => (
                 <div key={token.symbol} className="token-stat-row">
                   <span className="token-name">{token.symbol}</span>
-                  <span className="token-wallet">{walletBalances[token.symbol] || '-'}</span>
-                  <span className="token-reward">{rewardAmounts[token.symbol] || '0'}</span>
-                  <span className="token-fund">{fundBalances[token.symbol] || '0'}</span>
+                  <span className="token-wallet">{fmtBal(walletBalances[token.symbol] || '-')}</span>
+                  <span className="token-reward">{fmtBal(rewardAmounts[token.symbol] || '0')}</span>
+                  <span className="token-fund">{fmtBal(fundBalances[token.symbol] || '0')}</span>
                 </div>
               ))}
             </div>
@@ -558,7 +569,7 @@ function App() {
                 <div key={token.symbol} className="donate-row">
                   <div className="donate-token-info">
                     <span className="donate-token-name">{token.symbol}</span>
-                    <span className="donate-token-fund">Fund: {fundBalances[token.symbol] || '0'}</span>
+                    <span className="donate-token-fund">Fund: {fmtBal(fundBalances[token.symbol] || '0')}</span>
                   </div>
                   <form className="donate-form" onSubmit={(e) => handleDonate(e, token)}>
                     <input
