@@ -5,7 +5,7 @@ const NETWORKS = {
   jbchain: {
     key: 'jbchain',
     label: 'JB Chain',
-    chainId: '0x230B',
+    chainId: '0x22c3',
     chainName: 'JB Chain',
     rpcUrls: ['https://rpc-l1.jibchain.net'],
     nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
