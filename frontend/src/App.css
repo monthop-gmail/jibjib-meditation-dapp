@@ -487,12 +487,12 @@ h1 {
 
 .donate-form {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  flex: 1;
 }
 
 .donate-form input {
-  width: 120px;
-  min-width: 80px;
+  min-width: 0;
   flex: 1;
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
@@ -503,13 +503,15 @@ h1 {
 }
 
 .btn-donate-sm {
-  padding: 0.4rem 0.45rem;
-  font-size: 0.85rem;
+  padding: 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1;
   border-radius: 6px;
   background: linear-gradient(135deg, #a29bfe, #6c5ce7);
   color: white;
   border: none;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .btn-donate-sm:hover:not(:disabled) {
@@ -547,10 +549,10 @@ footer {
   }
   .donate-row {
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.3rem;
     align-items: stretch;
   }
   .donate-form {
-    justify-content: flex-end;
+    width: 100%;
   }
 }
