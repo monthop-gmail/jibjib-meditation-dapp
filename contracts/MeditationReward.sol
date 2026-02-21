@@ -33,6 +33,7 @@ contract MeditationReward {
 
     event MeditationStarted(address indexed user, uint256 timestamp);
     event MeditationCompleted(address indexed user, uint256 reward, address token, bool isBonus);
+    event MeditationCompletedNoReward(address indexed user, string reason);
     event RewardClaimed(address indexed user, uint256 amount, address token);
     event Donated(address indexed donor, address token, uint256 amount);
     event Withdrawn(address indexed owner, address token, uint256 amount);
@@ -101,25 +102,25 @@ contract MeditationReward {
             }
         }
         
-        require(
-            (token == address(0) ? nativeBalance : tokenBalances[token]) >= reward,
-            "Insufficient balance"
-        );
-
         lastMeditationTime[msg.sender] = 0;
         totalMeditationSessions[msg.sender]++;
         dailySessions[msg.sender]++;
 
-        if (token == address(0)) {
-            nativeBalance -= reward;
-            payable(msg.sender).transfer(reward);
+        uint256 availableBalance = token == address(0) ? nativeBalance : tokenBalances[token];
+        
+        if (availableBalance >= reward) {
+            if (token == address(0)) {
+                nativeBalance -= reward;
+                payable(msg.sender).transfer(reward);
+            } else {
+                tokenBalances[token] -= reward;
+                IERC20(token).transfer(msg.sender, reward);
+            }
+            emit MeditationCompleted(msg.sender, reward, token, isBonus);
+            emit RewardClaimed(msg.sender, reward, token);
         } else {
-            tokenBalances[token] -= reward;
-            IERC20(token).transfer(msg.sender, reward);
+            emit MeditationCompletedNoReward(msg.sender, "Insufficient fund");
         }
-
-        emit MeditationCompleted(msg.sender, reward, token, isBonus);
-        emit RewardClaimed(msg.sender, reward, token);
     }
 
     function getRewardAmount(address token) external view returns (uint256) {
