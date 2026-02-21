@@ -541,9 +541,19 @@ function App() {
               <p className="timer-label">กำลังทำสมาธิ... อย่าออกจากหน้านี้</p>
             )}
             {!meditating && stats.isMeditating && (
-              <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
-                ยืนยันรับ Reward (ค้างจากรอบก่อน)
-              </button>
+              <div className="pending-complete">
+                <p className="pending-notice">มีสมาธิค้างจากรอบก่อน</p>
+                <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
+                  ยืนยันรับ Reward
+                </button>
+                <button className="btn btn-skip" onClick={() => {
+                  setStats(s => ({ ...s, isMeditating: false }))
+                  setCompletedMsg('ข้ามไปก่อน — กลับมากดยืนยันได้ทุกเมื่อ')
+                  setCompleted(true)
+                }} disabled={!!loading}>
+                  ไว้ทีหลัง
+                </button>
+              </div>
             )}
             {cheated && (
               <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract}>

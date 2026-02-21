@@ -438,6 +438,33 @@ h1 {
   box-shadow: 0 4px 20px rgba(253, 203, 110, 0.4);
 }
 
+.pending-complete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pending-notice {
+  color: #fdcb6e;
+  font-size: 0.9rem;
+}
+
+.btn-skip {
+  background: transparent;
+  border: 1px solid #636e72;
+  color: #636e72;
+  font-size: 0.8rem;
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-skip:hover {
+  border-color: #b2bec3;
+  color: #b2bec3;
+}
+
 .donate-section {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
