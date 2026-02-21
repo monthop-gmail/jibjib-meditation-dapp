@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { BrowserProvider, Contract, formatUnits } from 'ethers'
+import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 
 const KUB_L2_TESTNET = {
   chainId: '0x3F4B3',
@@ -9,12 +9,19 @@ const KUB_L2_TESTNET = {
   blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
 }
 
+const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'
+
 const CONTRACT_ABI = [
   'function startMeditation() external',
-  'function completeMeditation() external',
-  'function getRewardAmount() external view returns (uint256)',
+  'function completeMeditation(address token) external',
+  'function claimPendingReward(address token) external',
+  'function donate(address token, uint256 amount) external payable',
+  'function getRewardAmount(address token) external view returns (uint256)',
   'function getMeditationDuration() external view returns (uint256)',
-  'function getUserStats(address user) external view returns (uint256 totalSessions, uint256 lastSessionTime, bool isMeditating)',
+  'function getUserStats(address user) external view returns (uint256 totalSessions, uint256 lastSessionTime, bool isMeditating, uint256 todaySessions, bool canClaim)',
+  'function getPendingReward(address user, address token) external view returns (uint256)',
+  'function getTokenBalance(address token) external view returns (uint256)',
+  'function getSupportedTokens() external view returns (address[])',
 ]
 
 const MEDITATION_SECONDS = 300
@@ -22,13 +29,18 @@ const MEDITATION_SECONDS = 300
 function App() {
   const [account, setAccount] = useState(null)
   const [contract, setContract] = useState(null)
-  const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false })
+  const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
   const [secondsLeft, setSecondsLeft] = useState(MEDITATION_SECONDS)
   const [meditating, setMeditating] = useState(false)
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
   const [cheated, setCheated] = useState(false)
   const [completed, setCompleted] = useState(false)
+  const [completedMsg, setCompletedMsg] = useState('')
+  const [rewardAmount, setRewardAmount] = useState('0')
+  const [pendingReward, setPendingReward] = useState('0')
+  const [fundBalance, setFundBalance] = useState('0')
+  const [donateAmount, setDonateAmount] = useState('')
   const timerRef = useRef(null)
 
   // Anti-cheat: detect tab switch / minimize
@@ -48,8 +60,22 @@ function App() {
 
   const loadStats = useCallback(async (c, addr) => {
     try {
-      const [totalSessions, , isMeditating] = await c.getUserStats(addr)
-      setStats({ totalSessions: Number(totalSessions), isMeditating })
+      const [totalSessions, , isMeditating, todaySessions, canClaim] = await c.getUserStats(addr)
+      setStats({
+        totalSessions: Number(totalSessions),
+        isMeditating,
+        todaySessions: Number(todaySessions),
+        canClaim,
+      })
+
+      const reward = await c.getRewardAmount(NATIVE_TOKEN)
+      setRewardAmount(formatEther(reward))
+
+      const pending = await c.getPendingReward(addr, NATIVE_TOKEN)
+      setPendingReward(formatEther(pending))
+
+      const balance = await c.getTokenBalance(NATIVE_TOKEN)
+      setFundBalance(formatEther(balance))
     } catch { /* ignore */ }
   }, [])
 
@@ -85,7 +111,6 @@ function App() {
 
       const signer = await provider.getSigner()
       const addr = accounts[0]
-      // Contract address - ต้องใส่หลัง deploy
       const contractAddress = localStorage.getItem('jibjib_contract') || ''
       if (!contractAddress) {
         setAccount(addr)
@@ -109,6 +134,7 @@ function App() {
     setError('')
     setCheated(false)
     setCompleted(false)
+    setCompletedMsg('')
     try {
       setLoading('กำลังเริ่มทำสมาธิ...')
       const tx = await contract.startMeditation()
@@ -137,14 +163,62 @@ function App() {
     setError('')
     try {
       setLoading('กำลังยืนยัน...')
-      const tx = await contract.completeMeditation()
-      await tx.wait()
+      const tx = await contract.completeMeditation(NATIVE_TOKEN)
+      const receipt = await tx.wait()
+
       setMeditating(false)
       setCompleted(true)
       clearInterval(timerRef.current)
+
+      // Check events to determine if reward was paid or stored as pending
+      const noRewardTopic = contract.interface.getEvent('MeditationCompletedNoReward').topicHash
+      const hasPending = receipt.logs.some(log => log.topics[0] === noRewardTopic)
+
+      if (hasPending) {
+        setCompletedMsg('ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund')
+      } else {
+        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${rewardAmount} tKUB`)
+      }
+
       await loadStats(contract, account)
     } catch (err) {
       setError(err.reason || err.message || 'ยืนยันไม่สำเร็จ')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function handleClaimPending() {
+    if (!contract) return
+    setError('')
+    try {
+      setLoading('กำลัง claim pending reward...')
+      const tx = await contract.claimPendingReward(NATIVE_TOKEN)
+      await tx.wait()
+      setCompletedMsg(`Claim สำเร็จ! ได้รับ ${pendingReward} tKUB`)
+      setCompleted(true)
+      await loadStats(contract, account)
+    } catch (err) {
+      setError(err.reason || err.message || 'Claim ไม่สำเร็จ')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function handleDonate(e) {
+    e.preventDefault()
+    if (!contract || !donateAmount) return
+    setError('')
+    try {
+      setLoading('กำลังบริจาค...')
+      const tx = await contract.donate(NATIVE_TOKEN, 0, { value: parseEther(donateAmount) })
+      await tx.wait()
+      setCompletedMsg(`บริจาค ${donateAmount} tKUB สำเร็จ!`)
+      setCompleted(true)
+      setDonateAmount('')
+      await loadStats(contract, account)
+    } catch (err) {
+      setError(err.reason || err.message || 'บริจาคไม่สำเร็จ')
     } finally {
       setLoading('')
     }
@@ -164,12 +238,12 @@ function App() {
 
   return (
     <div className="app">
-      <h1>🧘 JIBJIB Meditation</h1>
-      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward Token บน KUB L2</p>
+      <h1>JIBJIB Meditation</h1>
+      <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน KUB L2</p>
 
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">{loading}</div>}
-      {completed && <div className="success">ทำสมาธิสำเร็จ! ได้รับ 1 JIBJIB Reward 🎉</div>}
+      {completed && <div className="success">{completedMsg}</div>}
 
       {!account ? (
         <button className="btn btn-connect" onClick={connectWallet} disabled={!!loading}>
@@ -178,7 +252,7 @@ function App() {
       ) : (
         <div className="main">
           <div className="account">
-            🔗 {account.slice(0, 6)}...{account.slice(-4)}
+            {account.slice(0, 6)}...{account.slice(-4)}
           </div>
 
           {!localStorage.getItem('jibjib_contract') && (
@@ -196,27 +270,72 @@ function App() {
           </div>
 
           <div className="actions">
-            {!meditating && secondsLeft === MEDITATION_SECONDS && (
-              <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract}>
-                🧘 เริ่มทำสมาธิ
+            {!meditating && secondsLeft === MEDITATION_SECONDS && !stats.isMeditating && (
+              <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract || !stats.canClaim}>
+                {stats.canClaim ? 'เริ่มทำสมาธิ' : 'ครบ 3 ครั้งวันนี้แล้ว'}
               </button>
             )}
             {meditating && secondsLeft === 0 && (
               <button className="btn btn-complete" onClick={handleComplete} disabled={!!loading}>
-                ✅ ยืนยันรับ Reward
+                ยืนยันรับ Reward
               </button>
             )}
             {cheated && (
               <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract}>
-                🔄 เริ่มใหม่
+                เริ่มใหม่
               </button>
             )}
           </div>
 
+          {/* Pending Reward */}
+          {Number(pendingReward) > 0 && (
+            <div className="pending-section">
+              <p>Pending Reward: <strong>{pendingReward} tKUB</strong></p>
+              <button className="btn btn-claim" onClick={handleClaimPending} disabled={!!loading}>
+                Claim Pending Reward
+              </button>
+            </div>
+          )}
+
+          {/* Stats */}
           <div className="stats">
-            <h3>📊 สถิติ</h3>
-            <p>ทำสมาธิทั้งหมด: <strong>{stats.totalSessions}</strong> ครั้ง</p>
-            <p>สถานะ: {stats.isMeditating ? '🧘 กำลังทำสมาธิ' : '⏸️ พร้อมเริ่ม'}</p>
+            <h3>สถิติ</h3>
+            <div className="stats-grid">
+              <div className="stat-item">
+                <span className="stat-value">{stats.totalSessions}</span>
+                <span className="stat-label">ครั้งทั้งหมด</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{stats.todaySessions}/3</span>
+                <span className="stat-label">วันนี้</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{rewardAmount}</span>
+                <span className="stat-label">tKUB/ครั้ง</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{fundBalance}</span>
+                <span className="stat-label">Fund คงเหลือ</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Donate */}
+          <div className="donate-section">
+            <h3>บริจาค tKUB เข้า Fund</h3>
+            <form className="donate-form" onSubmit={handleDonate}>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="จำนวน tKUB"
+                value={donateAmount}
+                onChange={e => setDonateAmount(e.target.value)}
+              />
+              <button type="submit" className="btn btn-donate" disabled={!!loading || !contract || !donateAmount}>
+                บริจาค
+              </button>
+            </form>
           </div>
         </div>
       )}
