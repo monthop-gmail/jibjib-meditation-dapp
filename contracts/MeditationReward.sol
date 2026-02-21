@@ -14,10 +14,14 @@ contract MeditationReward {
     uint8 public decimals = 18;
 
     uint256 public constant MEDITATION_DURATION = 300 seconds;
+    uint256 public constant SESSION_GAP = 3 hours;
+    uint256 public constant BONUS_HOUR = 22 hours;
 
     mapping(address => uint256) public lastMeditationTime;
-    mapping(address => bool) public hasClaimedToday;
     mapping(address => uint256) public totalMeditationSessions;
+    mapping(address => uint256) public dailySessions;
+    mapping(address => uint256) public lastSessionDay;
+    mapping(address => bool) public hasClaimedToday;
 
     address public owner;
     address[] public supportedTokens;
@@ -28,7 +32,7 @@ contract MeditationReward {
     uint256 public nativeBalance;
 
     event MeditationStarted(address indexed user, uint256 timestamp);
-    event MeditationCompleted(address indexed user, uint256 reward, address token);
+    event MeditationCompleted(address indexed user, uint256 reward, address token, bool isBonus);
     event RewardClaimed(address indexed user, uint256 amount, address token);
     event Donated(address indexed donor, address token, uint256 amount);
     event Withdrawn(address indexed owner, address token, uint256 amount);
@@ -45,8 +49,31 @@ contract MeditationReward {
         isTokenSupported[address(0)] = true;
     }
 
+    function _getDay() internal view returns (uint256) {
+        return block.timestamp / 1 days;
+    }
+
+    function _resetDailySessions(address user) internal {
+        uint256 today = _getDay();
+        if (lastSessionDay[user] != today) {
+            dailySessions[user] = 0;
+            hasClaimedToday[user] = false;
+            lastSessionDay[user] = today;
+        }
+    }
+
     function startMeditation() external {
         require(lastMeditationTime[msg.sender] == 0, "Already meditating");
+        
+        _resetDailySessions(msg.sender);
+        
+        require(dailySessions[msg.sender] < 3, "Max 3 sessions/day");
+        
+        if (dailySessions[msg.sender] > 0) {
+            uint256 lastTime = lastSessionDay[msg.sender] * 1 days + lastMeditationTime[msg.sender] % 1 days;
+            require(block.timestamp - lastTime >= SESSION_GAP, "Need 3hr gap");
+        }
+        
         lastMeditationTime[msg.sender] = block.timestamp;
         emit MeditationStarted(msg.sender, block.timestamp);
     }
@@ -59,23 +86,39 @@ contract MeditationReward {
         );
         require(isTokenSupported[token], "Token not supported");
         
+        _resetDailySessions(msg.sender);
+        
         uint256 reward = rewardAmounts[token];
         require(reward > 0, "Reward not set for this token");
+        
+        bool isBonus = false;
+        
+        if (dailySessions[msg.sender] == 2) {
+            uint256 bonusTime = lastSessionDay[msg.sender] * 1 days + BONUS_HOUR;
+            if (block.timestamp >= bonusTime) {
+                reward = reward * 2;
+                isBonus = true;
+            }
+        }
+        
+        require(
+            (token == address(0) ? nativeBalance : tokenBalances[token]) >= reward,
+            "Insufficient balance"
+        );
 
         lastMeditationTime[msg.sender] = 0;
         totalMeditationSessions[msg.sender]++;
+        dailySessions[msg.sender]++;
 
         if (token == address(0)) {
-            require(nativeBalance >= reward, "Insufficient native balance");
             nativeBalance -= reward;
             payable(msg.sender).transfer(reward);
         } else {
-            require(tokenBalances[token] >= reward, "Insufficient token balance");
             tokenBalances[token] -= reward;
             IERC20(token).transfer(msg.sender, reward);
         }
 
-        emit MeditationCompleted(msg.sender, reward, token);
+        emit MeditationCompleted(msg.sender, reward, token, isBonus);
         emit RewardClaimed(msg.sender, reward, token);
     }
 
@@ -94,12 +137,18 @@ contract MeditationReward {
     function getUserStats(address user) external view returns (
         uint256 totalSessions,
         uint256 lastSessionTime,
-        bool isMeditating
+        bool isMeditating,
+        uint256 todaySessions,
+        bool canClaim
     ) {
+        uint256 today = _getDay();
+        bool isToday = lastSessionDay[user] == today;
         return (
             totalMeditationSessions[user],
             lastMeditationTime[user],
-            lastMeditationTime[user] > 0
+            lastMeditationTime[user] > 0,
+            isToday ? dailySessions[user] : 0,
+            dailySessions[user] < 3
         );
     }
 
