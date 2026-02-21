@@ -109,13 +109,6 @@ function App() {
     return () => clearInterval(timerRef.current)
   }, [])
 
-  // Auto-refresh stats every 30s
-  useEffect(() => {
-    if (!contract || !account || meditating) return
-    const id = setInterval(() => loadStats(contract, account), 30000)
-    return () => clearInterval(id)
-  }, [contract, account, meditating, loadStats])
-
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
     if (!meditating) return
@@ -188,6 +181,13 @@ function App() {
     setFundBalances(balances)
     setWalletBalances(walletBals)
   }, [net.tokens])
+
+  // Auto-refresh stats every 30s
+  useEffect(() => {
+    if (!contract || !account || meditating) return
+    const id = setInterval(() => loadStats(contract, account), 30000)
+    return () => clearInterval(id)
+  }, [contract, account, meditating, loadStats])
 
   async function switchNetwork(key) {
     if (meditating) {
