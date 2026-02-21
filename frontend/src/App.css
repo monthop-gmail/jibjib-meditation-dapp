@@ -83,6 +83,34 @@ h1 {
   margin-top: 0.15rem;
 }
 
+.token-selector {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.token-selector label {
+  font-size: 0.85rem;
+  color: #8e99a4;
+}
+
+.token-selector select {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(162, 155, 254, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.token-selector select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .network-badge {
   display: inline-block;
   margin-left: 0.5rem;
@@ -295,6 +323,37 @@ h1 {
   font-size: 0.75rem;
   color: #636e72;
   margin-top: 0.2rem;
+}
+
+.token-stats {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.token-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  font-size: 0.85rem;
+}
+
+.token-name {
+  font-weight: 600;
+  color: #a29bfe;
+  min-width: 70px;
+  text-align: left;
+}
+
+.token-reward {
+  color: #55efc4;
+}
+
+.token-fund {
+  color: #ffeaa7;
+  min-width: 100px;
+  text-align: right;
 }
 
 .stats p {

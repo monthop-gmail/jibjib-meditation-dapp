@@ -45,7 +45,7 @@ const NETWORKS = {
   },
 }
 
-const currentToken.address = '0x0000000000000000000000000000000000000000'
+
 
 const CONTRACT_ABI = [
   'function startMeditation() external',
@@ -74,15 +74,15 @@ function App() {
   const [cheated, setCheated] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [completedMsg, setCompletedMsg] = useState('')
-  const [rewardAmount, setRewardAmount] = useState('0')
-  const [pendingReward, setPendingReward] = useState('0')
-  const [fundBalance, setFundBalance] = useState('0')
+  const [rewardAmounts, setRewardAmounts] = useState({})
+  const [pendingRewards, setPendingRewards] = useState({})
+  const [fundBalances, setFundBalances] = useState({})
   const [donateAmount, setDonateAmount] = useState('')
-  const [selectedToken, setSelectedToken] = useState(0)
+  const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
   const timerRef = useRef(null)
 
   const net = NETWORKS[network]
-  const currentToken = net.tokens[selectedToken]
+  const selectedToken = net.tokens[selectedTokenIdx]
 
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
@@ -109,16 +109,26 @@ function App() {
         canClaim,
       })
 
-      const reward = await c.getRewardAmount(currentToken.address)
-      setRewardAmount(formatEther(reward))
+      const rewardAmounts = {}
+      const pendingRewards = {}
+      const fundBalances = {}
 
-      const pending = await c.getPendingReward(addr, currentToken.address)
-      setPendingReward(formatEther(pending))
+      for (const token of net.tokens) {
+        const [reward, pending, balance] = await Promise.all([
+          c.getRewardAmount(token.address),
+          c.getPendingReward(addr, token.address),
+          c.getTokenBalance(token.address),
+        ])
+        rewardAmounts[token.symbol] = formatEther(reward)
+        pendingRewards[token.symbol] = formatEther(pending)
+        fundBalances[token.symbol] = formatEther(balance)
+      }
 
-      const balance = await c.getTokenBalance(currentToken.address)
-      setFundBalance(formatEther(balance))
+      setRewardAmounts(rewardAmounts)
+      setPendingRewards(pendingRewards)
+      setFundBalances(fundBalances)
     } catch { /* ignore */ }
-  }, [currentToken])
+  }, [net.tokens])
 
   function switchNetwork(key) {
     if (meditating) return
@@ -128,9 +138,9 @@ function App() {
     setAccount(null)
     setContract(null)
     setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
-    setRewardAmount('0')
-    setPendingReward('0')
-    setFundBalance('0')
+    setRewardAmounts({})
+    setPendingRewards({})
+    setFundBalances({})
     setError('')
     setCompleted(false)
     setCompletedMsg('')
@@ -226,21 +236,21 @@ function App() {
     setError('')
     try {
       setLoading('กำลังยืนยัน...')
-      const tx = await contract.completeMeditation(currentToken.address)
+      const tx = await contract.completeMeditation(selectedToken.address)
       const receipt = await tx.wait()
 
       setMeditating(false)
       setCompleted(true)
       clearInterval(timerRef.current)
 
-      // Check events to determine if reward was paid or stored as pending
       const noRewardTopic = contract.interface.getEvent('MeditationCompletedNoReward').topicHash
       const hasPending = receipt.logs.some(log => log.topics[0] === noRewardTopic)
+      const reward = rewardAmounts[selectedToken.symbol] || '0'
 
       if (hasPending) {
         setCompletedMsg('ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund')
       } else {
-        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${rewardAmount} tKUB`)
+        setCompletedMsg(`ทำสมาธิสำเร็จ! ได้รับ ${reward} ${selectedToken.symbol}`)
       }
 
       await loadStats(contract, account)
@@ -256,9 +266,10 @@ function App() {
     setError('')
     try {
       setLoading('กำลัง claim pending reward...')
-      const tx = await contract.claimPendingReward(currentToken.address)
+      const tx = await contract.claimPendingReward(selectedToken.address)
       await tx.wait()
-      setCompletedMsg(`Claim สำเร็จ! ได้รับ ${pendingReward} tKUB`)
+      const pending = pendingRewards[selectedToken.symbol] || '0'
+      setCompletedMsg(`Claim สำเร็จ! ได้รับ ${pending} ${selectedToken.symbol}`)
       setCompleted(true)
       await loadStats(contract, account)
     } catch (err) {
@@ -274,9 +285,9 @@ function App() {
     setError('')
     try {
       setLoading('กำลังบริจาค...')
-      const tx = await contract.donate(currentToken.address, 0, { value: parseEther(donateAmount) })
+      const tx = await contract.donate(selectedToken.address, 0, { value: parseEther(donateAmount) })
       await tx.wait()
-      setCompletedMsg(`บริจาค ${donateAmount} tKUB สำเร็จ!`)
+      setCompletedMsg(`บริจาค ${donateAmount} ${selectedToken.symbol} สำเร็จ!`)
       setCompleted(true)
       setDonateAmount('')
       await loadStats(contract, account)
@@ -313,10 +324,10 @@ function App() {
       {/* Token Selector */}
       {net.tokens.length > 1 && (
         <div className="token-selector">
-          <label>เลือก Token ที่จะรับ:</label>
+          <label>เลือก Token ที่จะใช้:</label>
           <select 
-            value={selectedToken} 
-            onChange={(e) => setSelectedToken(Number(e.target.value))}
+            value={selectedTokenIdx} 
+            onChange={(e) => setSelectedTokenIdx(Number(e.target.value))}
             disabled={meditating || account === null}
           >
             {net.tokens.map((t, i) => (
@@ -373,9 +384,9 @@ function App() {
           </div>
 
           {/* Pending Reward */}
-          {Number(pendingReward) > 0 && (
+          {Number(pendingRewards[selectedToken.symbol] || 0) > 0 && (
             <div className="pending-section">
-              <p>Pending Reward: <strong>{pendingReward} tKUB</strong></p>
+              <p>Pending Reward: <strong>{pendingRewards[selectedToken.symbol]} {selectedToken.symbol}</strong></p>
               <button className="btn btn-claim" onClick={handleClaimPending} disabled={!!loading}>
                 Claim Pending Reward
               </button>
@@ -394,26 +405,29 @@ function App() {
                 <span className="stat-value">{stats.todaySessions}/3</span>
                 <span className="stat-label">วันนี้</span>
               </div>
-              <div className="stat-item">
-                <span className="stat-value">{rewardAmount}</span>
-                <span className="stat-label">tKUB/ครั้ง</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-value">{fundBalance}</span>
-                <span className="stat-label">Fund คงเหลือ</span>
-              </div>
+            </div>
+
+            {/* Per-token stats */}
+            <div className="token-stats">
+              {net.tokens.map(token => (
+                <div key={token.symbol} className="token-stat-row">
+                  <span className="token-name">{token.symbol}</span>
+                  <span className="token-reward">รางวัล: {rewardAmounts[token.symbol] || '0'}</span>
+                  <span className="token-fund">Fund: {fundBalances[token.symbol] || '0'}</span>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Donate */}
           <div className="donate-section">
-            <h3>บริจาค tKUB เข้า Fund</h3>
+            <h3>บริจาค {selectedToken.symbol} เข้า Fund</h3>
             <form className="donate-form" onSubmit={handleDonate}>
               <input
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="จำนวน tKUB"
+                placeholder={`จำนวน ${selectedToken.symbol}`}
                 value={donateAmount}
                 onChange={e => setDonateAmount(e.target.value)}
               />
