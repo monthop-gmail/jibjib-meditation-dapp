@@ -16,7 +16,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-l1.jibchain.net'],
     nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
     blockExplorerUrls: ['https://exp-l1.jibchain.net'],
-    contract: '0x59D689A6ded742A4BaE7D89d2A462c79B0F2897B',
+    contract: '0x81916861dCe173FE55B28d51088C3F3fb68975b6',
     tokens: [
       { address: '0xebe937ee67e3219d176965cc08110a258f925e01', symbol: 'JIBJIB', name: 'JIBJIB' },
       { address: '0x440bb674a2e443d600396a69c4c46362148699a2', symbol: 'JIBJIB C', name: 'JIBJIB C' },
@@ -31,7 +31,7 @@ const NETWORKS = {
     rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
     nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
     blockExplorerUrls: ['https://testnet.kubscan.com'],
-    contract: '0x17217acD1CF5DC1b38E7Ef007Ae684c3c40Ec1d8',
+    contract: '0xFaaCCa7830b49e55b37DEE74FD9BB68a283181CC',
     tokens: [
       { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
     ],
@@ -129,9 +129,6 @@ function meditationReducer(state, action) {
       return { ...state, phase: 'MEDITATING' }
     case 'PENDING_DETECTED':
       return { ...state, phase: 'PENDING_COMPLETE' }
-    case 'SKIP_PENDING':
-      return { ...state, phase: 'COMPLETED', completedMsg: 'ข้ามไปก่อน — กลับมากดยืนยันได้ทุกเมื่อ' }
-
     case 'CLAIM_BEGIN':
       return { ...state, phase: 'CLAIMING', loading: 'กำลัง claim pending reward...', error: '' }
     case 'CLAIM_SUCCESS':
@@ -600,11 +597,8 @@ function App() {
                 <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
                   ยืนยันรับ Reward
                 </button>
-                <button className="btn btn-skip" onClick={() => {
-                  setStats(s => ({ ...s, isMeditating: false }))
-                  dispatch({ type: 'SKIP_PENDING' })
-                }} disabled={!!mState.loading}>
-                  ไว้ทีหลัง
+                <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract}>
+                  เริ่มทำสมาธิใหม่
                 </button>
               </div>
             )}
@@ -617,11 +611,8 @@ function App() {
                 <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
                   ยืนยันรับ Reward
                 </button>
-                <button className="btn btn-skip" onClick={() => {
-                  setStats(s => ({ ...s, isMeditating: false }))
-                  dispatch({ type: 'SKIP_PENDING' })
-                }} disabled={!!mState.loading}>
-                  ไว้ทีหลัง
+                <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract}>
+                  เริ่มทำสมาธิใหม่
                 </button>
               </div>
             )}

@@ -11,13 +11,13 @@ const { JsonRpcProvider, Wallet, Contract, formatEther } = require('ethers')
 
 // ── Config ──────────────────────────────────────────────────────────
 const OLD_CONTRACTS = {
-  jbchain: '0x7DCd9A42096D9f2B97CD6680d72E71bCBCFfdCf1',
-  kubtestnet: '0x740ff5b8646c7feb3f46A475a33A992DC2CCC5c8',
+  jbchain: '0x59D689A6ded742A4BaE7D89d2A462c79B0F2897B',
+  kubtestnet: '0x17217acD1CF5DC1b38E7Ef007Ae684c3c40Ec1d8',
 }
 
 const NEW_CONTRACTS = {
-  jbchain: '0x59D689A6ded742A4BaE7D89d2A462c79B0F2897B',
-  kubtestnet: '0x17217acD1CF5DC1b38E7Ef007Ae684c3c40Ec1d8',
+  jbchain: '0x81916861dCe173FE55B28d51088C3F3fb68975b6',
+  kubtestnet: '0xFaaCCa7830b49e55b37DEE74FD9BB68a283181CC',
 }
 
 const NETWORKS = {
