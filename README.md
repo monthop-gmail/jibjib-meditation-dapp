@@ -1,19 +1,40 @@
-# 🧘 JIBJIB Meditation Reward DApp
+# JIBJIB Meditation Reward DApp
 
-สร้าง DApp สำหรับแจก reward token บน KUB L2 ให้ผู้ใช้ที่ทำ meditation ครบ 5 นาที
+DApp สำหรับแจก reward token ให้ผู้ใช้ที่ทำสมาธิครบ 5 นาที บน KUB Chain
 
-## 📋 ภาพรวม
+**Live**: https://jibjib-meditation.pages.dev
+
+## ภาพรวม
 
 | รายการ | รายละเอียด |
 |---------|-------------|
-| Token | JIBJIB จาก JB Chain |
-| Reward Chain | KUB L2 Testnet |
+| Token | tKUB (native) |
 | Activity | ทำสมาธิ 5 นาที |
-| Chain ID | 259251 (KUB L2 Testnet) |
+| Networks | KUB Testnet (L1) / KUB Layer 2 Testnet |
+| Deploy | Cloudflare Pages (auto deploy on push) |
 
-## 🚀 Quick Start
+## Networks
 
-### 1. Clone โปรเจค
+| Network | Chain ID | RPC | Explorer | Contract |
+|---------|----------|-----|----------|----------|
+| KUB Testnet (L1) | 25925 | `https://rpc-testnet.bitkubchain.io` | [testnet.kubscan.com](https://testnet.kubscan.com) | `0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064` |
+| KUB L2 Testnet | 259251 | `https://kublayer2.testnet.kubchain.io` | [kublayer2.testnet.kubscan.com](https://kublayer2.testnet.kubscan.com) | TBD |
+
+ผู้ใช้เลือก network ได้จากหน้าเว็บ — MetaMask จะ switch chain ให้อัตโนมัติ
+
+## Features
+
+- **Meditation Timer** — จับเวลา 5 นาที พร้อม anti-cheat (ออกจากหน้าจอ = เริ่มใหม่)
+- **3 Sessions/Day** — ทำได้สูงสุด 3 ครั้งต่อวัน เว้น 3 ชม.ระหว่างรอบ
+- **Bonus 2x** — รอบที่ 3 หลัง 4 ทุ่มได้ reward 2 เท่า
+- **Donation** — บริจาค tKUB เข้า reward fund ได้
+- **Pending Claims** — ถ้า fund หมด reward จะเก็บเป็น pending ไว้ claim ทีหลัง
+- **Multi-Network** — เลือก L1 หรือ L2 ได้ตามสะดวก
+
+## Quick Start
+
+### 1. Clone
+
 ```bash
 git clone https://github.com/monthop-gmail/jibjib-meditation-dapp.git
 cd jibjib-meditation-dapp
@@ -21,19 +42,9 @@ cd jibjib-meditation-dapp
 
 ### 2. Deploy Smart Contract
 
-#### ใช้ Hardhat
-```bash
-cd contracts
-npm install
-npx hardhat run scripts/deploy.js --network kubL2Testnet
-```
+ดูคู่มือ: [docs/deploy-remix.md](docs/deploy-remix.md)
 
-#### ใช้ Remix
-1. เปิด [Remix](https://remix.ethereum.org)
-2. Copy ไฟล์ `contracts/MeditationReward.sol` ไปใส่
-3. Compileและ  Deploy ไปที่ KUB L2 Testnet
-
-### 3. Setup Frontend
+### 3. Frontend (dev)
 
 ```bash
 cd frontend
@@ -41,61 +52,61 @@ npm install
 npm run dev
 ```
 
-## 📁 โครงสร้างโปรเจค
+## โครงสร้างโปรเจค
 
 ```
 jibjib-meditation-dapp/
 ├── README.md
 ├── contracts/
-│   ├── MeditationReward.sol    # Smart Contract
-│   └── script/
-│       └── deploy.js          # Deployment script
+│   ├── MeditationReward.sol      # Smart Contract
+│   ├── hardhat.config.js
+│   └── package.json
+├── docs/
+│   └── deploy-remix.md           # Remix IDE deploy guide
 └── frontend/
     ├── index.html
     ├── package.json
+    ├── vite.config.js
     └── src/
-        ├── App.jsx
-        ├── main.jsx
-        └── App.css
+        ├── App.jsx               # Main app (React + ethers v6)
+        ├── App.css               # Dark theme styles
+        └── main.jsx
 ```
 
-## 🔧 Configuration
-
-### KUB L2 Testnet
-| ชื่อ | ค่า |
-|------|-----|
-| Network Name | KUB Layer 2 Testnet |
-| RPC URL | https://kublayer2.testnet.kubchain.io |
-| Chain ID | 259251 |
-| Symbol | tKUB |
-| Explorer | https://kublayer2.testnet.kubscan.com |
-
-## 📝 Smart Contract API
+## Smart Contract API
 
 ```solidity
-// ฟังก์ชันหลัก
-function startMeditation() external    // เริ่ม meditation
-function completeMeditation() external // ยืนยันและรับ reward
-function getRewardAmount() external view returns (uint256)
+// Meditation
+function startMeditation() external
+function completeMeditation(address token) external
+
+// Rewards
+function claimPendingReward(address token) external
+function getRewardAmount(address token) view returns (uint256)
+function getPendingReward(address user, address token) view returns (uint256)
+
+// Donation & Fund
+function donate(address token, uint256 amount) payable
+function getTokenBalance(address token) view returns (uint256)
+
+// Stats
+function getUserStats(address user) view returns (
+    uint256 totalSessions, uint256 lastSessionTime,
+    bool isMeditating, uint256 todaySessions, bool canClaim
+)
+
+// Admin
+function setRewardAmount(address token, uint256 amount) onlyOwner
+function withdraw(address token, uint256 amount) onlyOwner
 ```
 
-## 🎯 Features
+## CI/CD
 
-- [x] Meditation Timer (5 นาที)
-- [x] Reward Distribution
-- [x] Anti-cheat (ห้าม minimize)
-- [x] Connect MetaMask
-- [ ] Leaderboard
-- [ ] Bridge Token (JB Chain → KUB L2)
+- Push to `master` → auto deploy to Cloudflare Pages
+- GitHub Actions workflow: `.github/workflows/deploy.yml`
 
-## ⚠️ Notes
+## Notes
 
-- ต้องมี tKUB บน KUB L2 Testnet สำหรับทดสอบ
-- Bridge token จาก KUB Testnet ได้ที่: https://faucet.kubchain.com/
-- ตัว contract เป็น demo version - ควร audit ก่อนใช้จริง
-
-## 📞 Contact
-
-- JB Chain: https://jibchain.net
-- KUB Chain: https://kubchain.com
-- Docs: https://docs.kubchain.com
+- ต้องมี tKUB สำหรับ gas fee — ขอได้ที่ faucet
+- Contract เป็น demo version สำหรับ testnet
+- KUB L2 RPC มี nginx body size limit ทำให้ deploy ผ่าน CLI ไม่ได้ → ใช้ Remix IDE
