@@ -2,9 +2,19 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
 
 const NETWORKS = {
-  l1: {
-    key: 'l1',
-    label: 'KUB Testnet (L1)',
+  jbchain: {
+    key: 'jbchain',
+    label: 'JB Chain',
+    chainId: '0x230B',
+    chainName: 'JB Chain',
+    rpcUrls: ['https://rpc-l1.jibchain.net'],
+    nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
+    blockExplorerUrls: ['https://exp-l1.jibchain.net'],
+    contract: '0x5234C5baD4819Cf70a39d87696dfB3e0e1eAFcaF',
+  },
+  kubtestnet: {
+    key: 'kubtestnet',
+    label: 'KUB Testnet',
     chainId: '0x6545',
     chainName: 'KUB Testnet',
     rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
@@ -12,15 +22,15 @@ const NETWORKS = {
     blockExplorerUrls: ['https://testnet.kubscan.com'],
     contract: '0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064',
   },
-  l2: {
-    key: 'l2',
+  kubl2: {
+    key: 'kubl2',
     label: 'KUB Layer 2 Testnet',
     chainId: '0x3F4B3',
     chainName: 'KUB Layer 2 Testnet',
     rpcUrls: ['https://kublayer2.testnet.kubchain.io'],
     nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
     blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
-    contract: '', // TODO: deploy to L2
+    contract: '',
   },
 }
 
@@ -42,7 +52,7 @@ const CONTRACT_ABI = [
 const MEDITATION_SECONDS = 300
 
 function App() {
-  const [network, setNetwork] = useState(() => localStorage.getItem('jibjib_network') || 'l1')
+  const [network, setNetwork] = useState(() => localStorage.getItem('jibjib_network') || 'jbchain')
   const [account, setAccount] = useState(null)
   const [contract, setContract] = useState(null)
   const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
