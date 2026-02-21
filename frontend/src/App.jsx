@@ -59,6 +59,7 @@ const CONTRACT_ABI = [
   'function getRewardAmount(address token) external view returns (uint256)',
   'function getMeditationDuration() external view returns (uint256)',
   'function getUserStats(address user) external view returns (uint256 totalSessions, uint256 lastSessionTime, bool isMeditating, uint256 todaySessions, bool canClaim)',
+  'function getRewardEligibility(address user) external view returns (bool canGetReward, uint256 secondsUntilReward, uint256 todaySessions, bool isMeditating)',
   'function getPendingReward(address user, address token) external view returns (uint256)',
   'function getTokenBalance(address token) external view returns (uint256)',
   'function getSupportedTokens() external view returns (address[])',
@@ -75,6 +76,14 @@ function fmtBal(val) {
   return n.toFixed(6)
 }
 
+function fmtTime(seconds) {
+  if (seconds <= 0) return '0'
+  const hrs = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  if (hrs > 0) return `${hrs} ชม. ${mins} นาที`
+  return `${mins} นาที`
+}
+
 const MEDITATION_SECONDS = 300
 
 function App() {
@@ -87,6 +96,7 @@ function App() {
   const [account, setAccount] = useState(null)
   const [contract, setContract] = useState(null)
   const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+  const [eligibility, setEligibility] = useState({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
   const [secondsLeft, setSecondsLeft] = useState(MEDITATION_SECONDS)
   const [meditating, setMeditating] = useState(false)
   const [loading, setLoading] = useState('')
@@ -137,6 +147,21 @@ function App() {
       console.error('getUserStats failed:', err.message, 'contract:', c.target, 'addr:', addr)
       setError(`ดึงข้อมูลไม่ได้ — ลอง Hard Refresh (Ctrl+Shift+R) หรือเปลี่ยน network แล้วกลับมา`)
       return
+    }
+
+    // Get reward eligibility
+    try {
+      const [canGetReward, secondsUntilReward, todaySessions, isMeditating] = await c.getRewardEligibility(addr)
+      setEligibility({
+        canGetReward,
+        secondsUntilReward: Number(secondsUntilReward),
+        todaySessions: Number(todaySessions),
+        isMeditating,
+      })
+    } catch (err) {
+      console.error('getRewardEligibility failed:', err.message)
+      // Fallback: assume can get reward if canClaim is true
+      setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: stats.todaySessions, isMeditating: stats.isMeditating })
     }
 
     const rewards = {}
@@ -520,6 +545,14 @@ function App() {
           </div>
 
           <div className="actions">
+            {/* Eligibility Status */}
+            {!meditating && !stats.isMeditating && eligibility.todaySessions > 0 && (
+              <div className={`eligibility ${eligibility.canGetReward ? 'eligible' : 'waiting'}`}>
+                {eligibility.canGetReward 
+                  ? '✓ พร้อมรับ Reward' 
+                  : `⏳ ต้องรออีก ${fmtTime(eligibility.secondsUntilReward)} ถึงจะได้รับ Reward`}
+              </div>
+            )}
             {!meditating && secondsLeft === MEDITATION_SECONDS && !stats.isMeditating && (
               <button className="btn btn-start" onClick={handleStart} disabled={!!loading || !contract || !stats.canClaim}>
                 {stats.canClaim ? 'เริ่มทำสมาธิ' : 'ครบ 3 ครั้งวันนี้แล้ว'}

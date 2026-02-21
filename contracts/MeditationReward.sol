@@ -183,6 +183,34 @@ contract MeditationReward {
         );
     }
 
+    function getRewardEligibility(address user) external view returns (
+        bool canGetReward,
+        uint256 secondsUntilReward,
+        uint256 todaySessions,
+        bool isMeditating
+    ) {
+        uint256 today = _getDay();
+        bool isToday = lastSessionDay[user] == today;
+        uint256 sessions = isToday ? dailySessions[user] : 0;
+        
+        if (sessions == 0) {
+            return (true, 0, sessions, lastMeditationTime[user] > 0);
+        }
+        
+        if (sessions >= 3) {
+            return (false, 0, sessions, lastMeditationTime[user] > 0);
+        }
+        
+        uint256 lastTime = lastSessionDay[user] * 1 days + lastMeditationTime[user] % 1 days;
+        uint256 timePassed = block.timestamp - lastTime;
+        
+        if (timePassed >= SESSION_GAP) {
+            return (true, 0, sessions, lastMeditationTime[user] > 0);
+        }
+        
+        return (false, SESSION_GAP - timePassed, sessions, lastMeditationTime[user] > 0);
+    }
+
     function setRewardAmount(address token, uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
         rewardAmounts[token] = amount;
