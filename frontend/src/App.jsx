@@ -163,11 +163,31 @@ function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [meditating])
 
+  // Resume timer if contract says isMeditating (e.g. after page refresh)
+  useEffect(() => {
+    if (!stats.isMeditating || meditating || !stats.lastSessionTime) return
+    const elapsed = Math.floor(Date.now() / 1000) - stats.lastSessionTime
+    const remaining = Math.max(0, MEDITATION_SECONDS - elapsed)
+    if (remaining > 0) {
+      setMeditating(true)
+      setSecondsLeft(remaining)
+      clearInterval(timerRef.current)
+      timerRef.current = setInterval(() => {
+        setSecondsLeft(prev => {
+          if (prev <= 1) { clearInterval(timerRef.current); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+    }
+    // if remaining <= 0, shows complete button (correct — time is up)
+  }, [stats.isMeditating, stats.lastSessionTime, meditating])
+
   const loadStats = useCallback(async (c, addr) => {
     try {
-      const [totalSessions, , isMeditating, todaySessions, canClaim] = await c.getUserStats(addr)
+      const [totalSessions, lastSessionTime, isMeditating, todaySessions, canClaim] = await c.getUserStats(addr)
       setStats({
         totalSessions: Number(totalSessions),
+        lastSessionTime: Number(lastSessionTime),
         isMeditating,
         todaySessions: Number(todaySessions),
         canClaim,
