@@ -11,6 +11,11 @@ const NETWORKS = {
     nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
     blockExplorerUrls: ['https://exp-l1.jibchain.net'],
     contract: '0x5234C5baD4819Cf70a39d87696dfB3e0e1eAFcaF',
+    tokens: [
+      { address: '0xebe937ee67e3219d176965cc08110a258f925e01', symbol: 'JIBJIB', name: 'JIBJIB' },
+      { address: '0x440bb674a2e443d600396a69c4c46362148699a2', symbol: 'JIBJIB C', name: 'JIBJIB C' },
+      { address: '0x0000000000000000000000000000000000000000', symbol: 'JBC', name: 'JBC (Native)' },
+    ],
   },
   kubtestnet: {
     key: 'kubtestnet',
@@ -21,6 +26,9 @@ const NETWORKS = {
     nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
     blockExplorerUrls: ['https://testnet.kubscan.com'],
     contract: '0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064',
+    tokens: [
+      { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
+    ],
   },
   kubl2: {
     key: 'kubl2',
@@ -31,10 +39,13 @@ const NETWORKS = {
     nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
     blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
     contract: '',
+    tokens: [
+      { address: '0x0000000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
+    ],
   },
 }
 
-const NATIVE_TOKEN = '0x0000000000000000000000000000000000000000'
+const currentToken.address = '0x0000000000000000000000000000000000000000'
 
 const CONTRACT_ABI = [
   'function startMeditation() external',
@@ -67,9 +78,11 @@ function App() {
   const [pendingReward, setPendingReward] = useState('0')
   const [fundBalance, setFundBalance] = useState('0')
   const [donateAmount, setDonateAmount] = useState('')
+  const [selectedToken, setSelectedToken] = useState(0)
   const timerRef = useRef(null)
 
   const net = NETWORKS[network]
+  const currentToken = net.tokens[selectedToken]
 
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
@@ -96,16 +109,16 @@ function App() {
         canClaim,
       })
 
-      const reward = await c.getRewardAmount(NATIVE_TOKEN)
+      const reward = await c.getRewardAmount(currentToken.address)
       setRewardAmount(formatEther(reward))
 
-      const pending = await c.getPendingReward(addr, NATIVE_TOKEN)
+      const pending = await c.getPendingReward(addr, currentToken.address)
       setPendingReward(formatEther(pending))
 
-      const balance = await c.getTokenBalance(NATIVE_TOKEN)
+      const balance = await c.getTokenBalance(currentToken.address)
       setFundBalance(formatEther(balance))
     } catch { /* ignore */ }
-  }, [])
+  }, [currentToken])
 
   function switchNetwork(key) {
     if (meditating) return
@@ -213,7 +226,7 @@ function App() {
     setError('')
     try {
       setLoading('กำลังยืนยัน...')
-      const tx = await contract.completeMeditation(NATIVE_TOKEN)
+      const tx = await contract.completeMeditation(currentToken.address)
       const receipt = await tx.wait()
 
       setMeditating(false)
@@ -243,7 +256,7 @@ function App() {
     setError('')
     try {
       setLoading('กำลัง claim pending reward...')
-      const tx = await contract.claimPendingReward(NATIVE_TOKEN)
+      const tx = await contract.claimPendingReward(currentToken.address)
       await tx.wait()
       setCompletedMsg(`Claim สำเร็จ! ได้รับ ${pendingReward} tKUB`)
       setCompleted(true)
@@ -261,7 +274,7 @@ function App() {
     setError('')
     try {
       setLoading('กำลังบริจาค...')
-      const tx = await contract.donate(NATIVE_TOKEN, 0, { value: parseEther(donateAmount) })
+      const tx = await contract.donate(currentToken.address, 0, { value: parseEther(donateAmount) })
       await tx.wait()
       setCompletedMsg(`บริจาค ${donateAmount} tKUB สำเร็จ!`)
       setCompleted(true)
@@ -296,6 +309,22 @@ function App() {
           </button>
         ))}
       </div>
+
+      {/* Token Selector */}
+      {net.tokens.length > 1 && (
+        <div className="token-selector">
+          <label>เลือก Token ที่จะรับ:</label>
+          <select 
+            value={selectedToken} 
+            onChange={(e) => setSelectedToken(Number(e.target.value))}
+            disabled={meditating || account === null}
+          >
+            {net.tokens.map((t, i) => (
+              <option key={i} value={i}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">{loading}</div>}
