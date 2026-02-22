@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from 'react'
 import { useAccount, useChainId, useSwitchChain, useDisconnect, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi'
-import { readContract } from 'wagmi/actions'
+import { readContract, getPublicClient } from 'wagmi/actions'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { formatEther, parseEther, parseEventLogs } from 'viem'
 import { config, CHAIN_CONTRACTS, CHAIN_TOKENS, jbchain, kubtestnet, kubl2testnet } from './wagmiConfig.js'
@@ -524,6 +524,94 @@ function App() {
     }
   }
 
+  const [fetchingChain, setFetchingChain] = useState(false)
+
+  async function fetchHistoryFromChain() {
+    if (!isConnected || !address || !contractAddress) return
+    setFetchingChain(true)
+    try {
+      const client = getPublicClient(config, { chainId })
+
+      const [completedLogs, pendingLogs, recordedLogs] = await Promise.all([
+        client.getContractEvents({
+          address: contractAddress, abi: CONTRACT_ABI,
+          eventName: 'MeditationCompleted', args: { user: address },
+          fromBlock: 0n, toBlock: 'latest',
+        }),
+        client.getContractEvents({
+          address: contractAddress, abi: CONTRACT_ABI,
+          eventName: 'PendingRewardStored', args: { user: address },
+          fromBlock: 0n, toBlock: 'latest',
+        }),
+        client.getContractEvents({
+          address: contractAddress, abi: CONTRACT_ABI,
+          eventName: 'MeditationRecorded', args: { user: address },
+          fromBlock: 0n, toBlock: 'latest',
+        }),
+      ])
+
+      // Collect unique block numbers to fetch timestamps
+      const blockNums = new Set()
+      ;[...completedLogs, ...pendingLogs, ...recordedLogs].forEach(log => blockNums.add(log.blockNumber))
+      const blockTimestamps = {}
+      await Promise.all([...blockNums].map(async (bn) => {
+        const block = await client.getBlock({ blockNumber: bn })
+        blockTimestamps[bn.toString()] = Number(block.timestamp) * 1000
+      }))
+
+      const chainEntries = []
+
+      completedLogs.forEach(log => {
+        const tokenAddr = log.args.token
+        const token = tokens.find(t => t.address.toLowerCase() === tokenAddr.toLowerCase())
+        chainEntries.push({
+          ts: blockTimestamps[log.blockNumber.toString()],
+          net: chainLabel,
+          token: token?.symbol || 'unknown',
+          reward: formatEther(log.args.reward),
+          result: 'rewarded',
+        })
+      })
+
+      pendingLogs.forEach(log => {
+        const tokenAddr = log.args.token
+        const token = tokens.find(t => t.address.toLowerCase() === tokenAddr.toLowerCase())
+        chainEntries.push({
+          ts: blockTimestamps[log.blockNumber.toString()],
+          net: chainLabel,
+          token: token?.symbol || 'unknown',
+          reward: formatEther(log.args.amount),
+          result: 'pending',
+        })
+      })
+
+      recordedLogs.forEach(log => {
+        chainEntries.push({
+          ts: blockTimestamps[log.blockNumber.toString()],
+          net: chainLabel,
+          token: '-',
+          reward: '0',
+          result: 'recorded',
+        })
+      })
+
+      // Merge with existing history (dedup by timestamp within 2 seconds)
+      const merged = [...chainEntries, ...history]
+        .sort((a, b) => b.ts - a.ts)
+        .filter((h, i, arr) => i === 0 || Math.abs(h.ts - arr[i - 1].ts) > 2000 || h.result !== arr[i - 1].result)
+        .slice(0, HISTORY_MAX)
+
+      setHistory(merged)
+      localStorage.setItem('jibjib_history', JSON.stringify(merged))
+      alert(`ดึงได้ ${chainEntries.length} รายการจาก ${chainLabel}`)
+    } catch (err) {
+      console.error('fetchHistoryFromChain:', err)
+      alert('ดึงประวัติไม่สำเร็จ: ' + (err.shortMessage || err.message))
+    } finally {
+      setFetchingChain(false)
+    }
+  }
+
   const minutes = Math.floor(secondsLeft / 60)
   const seconds = secondsLeft % 60
 
@@ -730,6 +818,11 @@ function App() {
 
       <div className="history-section">
         <h3>ประวัติ {history.length > 0 && `(${history.length})`}</h3>
+        {isConnected && contractAddress && (
+          <button className="btn-history-action btn-fetch-chain" onClick={fetchHistoryFromChain} disabled={fetchingChain}>
+            {fetchingChain ? 'กำลังดึง...' : `ดึงจาก ${chainLabel}`}
+          </button>
+        )}
         {history.length === 0 ? (
           <p className="history-empty">ยังไม่มีประวัติ — เริ่มทำสมาธิเลย!</p>
         ) : (

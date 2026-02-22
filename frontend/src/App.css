@@ -657,9 +657,18 @@ h1 {
   cursor: pointer;
 }
 
-.btn-history-action:hover {
+.btn-history-action:hover:not(:disabled) {
   background: rgba(108, 92, 231, 0.2);
   color: #d0c8ff;
+}
+
+.btn-history-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-fetch-chain {
+  margin-bottom: 0.5rem;
 }
 
 .btn-clear-history {
