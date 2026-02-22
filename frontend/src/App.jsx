@@ -3,7 +3,7 @@ import { useAccount, useChainId, useSwitchChain, useDisconnect, useReadContract,
 import { readContract } from 'wagmi/actions'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { formatEther, parseEther, parseEventLogs } from 'viem'
-import { config, CHAIN_CONTRACTS, CHAIN_TOKENS, jbchain } from './wagmiConfig.js'
+import { config, CHAIN_CONTRACTS, CHAIN_TOKENS, jbchain, kubtestnet, kubl2testnet } from './wagmiConfig.js'
 
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
 
