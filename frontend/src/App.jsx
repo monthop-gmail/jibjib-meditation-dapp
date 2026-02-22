@@ -537,6 +537,23 @@ function App() {
         <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
       </div>
 
+      {/* Network Selector */}
+      {isConnected && (
+        <div className="network-selector">
+          {Object.entries({ jbchain: jbchain.id, kubtestnet: kubtestnet.id, kubl2testnet: kubl2testnet.id }).map(([key, id]) => (
+            <button
+              key={key}
+              className={`network-btn ${chainId === id ? 'active' : ''} ${!CHAIN_CONTRACTS[id] ? 'no-contract' : ''}`}
+              onClick={() => switchChain({ chainId: id })}
+              disabled={isLocked}
+            >
+              {{ jbchain: 'JB Chain', kubtestnet: 'KUB Testnet', kubl2testnet: 'KUB L2' }[key]}
+              {!CHAIN_CONTRACTS[id] && <span className="soon-badge">เร็วๆนี้</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Token Selector */}
       {isConnected && tokens.length > 1 && (
         <div className="token-selector">
