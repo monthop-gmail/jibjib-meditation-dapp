@@ -196,6 +196,21 @@ h1 {
   color: #ffeaa7;
 }
 
+.reward-preview {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #a29bfe;
+  margin-bottom: 0.75rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.reward-preview strong {
+  color: #55efc4;
+}
+
 .btn-connect {
   background: linear-gradient(135deg, #6c5ce7, #a29bfe);
   color: white;

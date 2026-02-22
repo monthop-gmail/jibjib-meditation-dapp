@@ -87,6 +87,35 @@ function fmtTime(seconds) {
   return `${mins} นาที`
 }
 
+function getEligibilityReason(eligibility, todaySessions) {
+  if (todaySessions === 0) return null
+  if (!eligibility.canGetReward) {
+    if (eligibility.secondsUntilReward > 0) {
+      return { icon: '⏳', text: `ต้องรออีก ${fmtTime(eligibility.secondsUntilReward)} ถึงจะได้รับ Reward` }
+    }
+    return { icon: '🚫', text: 'ครบ 3 ครั้ง/วันแล้ว' }
+  }
+  return { icon: '✓', text: 'พร้อมรับ Reward' }
+}
+
+function getResultIcon(result) {
+  switch (result) {
+    case 'rewarded': return '✓'
+    case 'pending': return '⏳'
+    case 'recorded': return '📝'
+    default: return '?'
+  }
+}
+
+function getResultText(result, token, reward) {
+  switch (result) {
+    case 'rewarded': return `ได้รับ ${fmtBal(reward)} ${token}`
+    case 'pending': return `เก็บ Pending ${fmtBal(reward)} ${token}`
+    case 'recorded': return 'บันทึกแล้ว (ยังไม่ถึงเวลารับ)'
+    default: return ''
+  }
+}
+
 const HISTORY_MAX = 50
 
 const MEDITATION_SECONDS = 300
@@ -407,7 +436,41 @@ function App() {
     dispatch({ type: 'START_BEGIN' })
     try {
       const tx = await contract.startMeditation()
-      await tx.wait()
+      const receipt = await tx.wait()
+
+      // Check for auto-complete events
+      const completedTopic = contract.interface.getEvent('MeditationCompleted').topicHash
+      const pendingTopic = contract.interface.getEvent('PendingRewardStored').topicHash
+      const recordedTopic = contract.interface.getEvent('MeditationRecorded').topicHash
+
+      const hasCompleted = receipt.logs.some(log => log.topics[0] === completedTopic)
+      const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
+      const hasRecorded = receipt.logs.some(log => log.topics[0] === recordedTopic)
+      const reward = rewardAmounts[selectedToken.symbol] || '0'
+
+      // Only show message if there was an auto-complete
+      if (hasCompleted || hasPending || hasRecorded) {
+        let msg, result
+        if (hasCompleted) {
+          msg = `✓ รอบก่อน: ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`
+          result = 'rewarded'
+        } else if (hasPending) {
+          msg = `⏳ รอบก่อน: เก็บ Pending ${fmtBal(reward)} ${selectedToken.symbol}`
+          result = 'pending'
+        } else {
+          msg = '📝 รอบก่อน: บันทึกแล้ว'
+          result = 'recorded'
+        }
+
+        // Add to history
+        const entry = { ts: Date.now(), net: net.label, token: selectedToken.symbol, reward, result }
+        setHistory(prev => {
+          const updated = [entry, ...prev].slice(0, HISTORY_MAX)
+          localStorage.setItem('jibjib_history', JSON.stringify(updated))
+          return updated
+        })
+      }
+
       startTimer(MEDITATION_SECONDS)
       dispatch({ type: 'START_SUCCESS' })
     } catch (err) {
@@ -427,20 +490,25 @@ function App() {
 
       const completedTopic = contract.interface.getEvent('MeditationCompleted').topicHash
       const pendingTopic = contract.interface.getEvent('PendingRewardStored').topicHash
+      const recordedTopic = contract.interface.getEvent('MeditationRecorded').topicHash
 
       const hasCompleted = receipt.logs.some(log => log.topics[0] === completedTopic)
       const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
+      const hasRecorded = receipt.logs.some(log => log.topics[0] === recordedTopic)
       const reward = rewardAmounts[selectedToken.symbol] || '0'
 
       let msg, result = 'recorded'
       if (hasCompleted) {
-        msg = `ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`
+        msg = `✓ ทำสมาธิสำเร็จ! ได้รับ ${fmtBal(reward)} ${selectedToken.symbol}`
         result = 'rewarded'
       } else if (hasPending) {
-        msg = 'ทำสมาธิสำเร็จ! Reward ถูกเก็บเป็น Pending (fund หมด) — claim ได้เมื่อมี fund'
+        msg = `⏳ ทำสมาธิสำเร็จ! เก็บ Pending ${fmtBal(reward)} ${selectedToken.symbol} — claim ได้เมื่อมี fund`
         result = 'pending'
+      } else if (hasRecorded) {
+        msg = '📝 บันทึกสำเร็จ! (ยังไม่ถึงเวลารับ Reward)'
+        result = 'recorded'
       } else {
-        msg = 'บันทึกสำเร็จ! (ยังไม่ถึงเวลารับ Reward)'
+        msg = 'ทำสมาธิเสร็จ!'
       }
 
       dispatch({ type: 'COMPLETE_SUCCESS', msg })
@@ -579,13 +647,21 @@ function App() {
           </div>
 
           <div className="actions">
-            {/* Eligibility Status */}
-            {['IDLE', 'COMPLETED'].includes(mState.phase) && !stats.isMeditating && eligibility.todaySessions > 0 && (
-              <div className={`eligibility ${eligibility.canGetReward ? 'eligible' : 'waiting'}`}>
-                {eligibility.canGetReward
-                  ? '✓ พร้อมรับ Reward'
-                  : `⏳ ต้องรออีก ${fmtTime(eligibility.secondsUntilReward)} ถึงจะได้รับ Reward`}
-              </div>
+            {/* Eligibility Status + Reward Preview */}
+            {['IDLE', 'COMPLETED'].includes(mState.phase) && !stats.isMeditating && (
+              <>
+                {eligibility.todaySessions > 0 && (
+                  <div className={`eligibility ${eligibility.canGetReward ? 'eligible' : 'waiting'}`}>
+                    {(() => {
+                      const reason = getEligibilityReason(eligibility, eligibility.todaySessions)
+                      return reason ? `${reason.icon} ${reason.text}` : null
+                    })()}
+                  </div>
+                )}
+                <div className="reward-preview">
+                  รอบนี้จะได้รับ: <strong>{eligibility.canGetReward ? `${fmtBal(rewardAmounts[selectedToken.symbol] || '0')} ${selectedToken.symbol}` : 'บันทึกอย่างเดียว'}</strong>
+                </div>
+              </>
             )}
             {['IDLE', 'COMPLETED'].includes(mState.phase) && !stats.isMeditating && (
               <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract || !stats.canClaim}>
@@ -716,7 +792,7 @@ function App() {
                   <span className="history-time">{new Date(h.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
                   <span className="history-net">{h.net}</span>
                   <span className="history-result">
-                    {h.result === 'rewarded' ? `+${fmtBal(h.reward)} ${h.token}` : h.result === 'pending' ? 'pending' : 'บันทึก'}
+                    {getResultIcon(h.result)} {getResultText(h.result, h.token, h.reward)}
                   </span>
                 </div>
               ))}
