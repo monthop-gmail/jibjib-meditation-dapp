@@ -65,6 +65,6 @@ export const LEGACY_CONTRACTS = {
 
 export const config = getDefaultConfig({
   appName: 'JIBJIB Meditation',
-  projectId: 'jibjib-meditation',
+  projectId: '03ca51925477a0c0d3154d96bb348ce5',
   chains: [jbchain, kubtestnet, kubl2testnet],
 })
