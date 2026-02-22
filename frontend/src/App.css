@@ -11,6 +11,38 @@ body {
   min-height: 100vh;
 }
 
+/* RainbowKit ConnectButton Customization */
+.rainbowkit-button {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
+  border-radius: 16px !important;
+  padding: 0.6rem 1.2rem !important;
+  font-weight: 600 !important;
+}
+
+.rainbowkit-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
+}
+
+.rainbowkit-dropdown {
+  background: #1a1a2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+}
+
+.rainbowkit-option {
+  color: #e0e0e0 !important;
+}
+
+.rainbowkit-option:hover {
+  background: rgba(108, 92, 231, 0.2) !important;
+}
+
+.rainbowkit-chain-indicator {
+  background: rgba(162, 155, 254, 0.2) !important;
+  color: #a29bfe !important;
+}
+
 .app {
   max-width: 480px;
   margin: 0 auto;
@@ -20,6 +52,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.wallet-connect {
+  margin-bottom: 1rem;
 }
 
 h1 {

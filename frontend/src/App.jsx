@@ -533,8 +533,8 @@ function App() {
       <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน Blockchain</p>
 
       {/* Wallet Connect */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-        <ConnectButton showBalance={false} chainStatus="icon" />
+      <div className="wallet-connect">
+        <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
       </div>
 
       {/* Token Selector */}
