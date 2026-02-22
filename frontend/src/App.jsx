@@ -540,7 +540,7 @@ function App() {
       {/* Token Selector */}
       {isConnected && tokens.length > 1 && (
         <div className="token-selector">
-          <label>เลือก Token ที่จะใช้:</label>
+          <label>เลือก Token รางวัล:</label>
           <select
             value={selectedTokenIdx}
             onChange={(e) => setSelectedTokenIdx(Number(e.target.value))}
