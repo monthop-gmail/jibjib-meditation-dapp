@@ -56,8 +56,8 @@ sudo nginx -t && sudo systemctl reload nginx
 - ใช้ **KUB Testnet (L1)** ไปก่อน — deploy สำเร็จแล้ว
   - Chain ID: 25925
   - RPC: `https://rpc-testnet.bitkubchain.io`
-  - Contract: `0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064`
-- Frontend รองรับทั้ง L1 และ L2 แล้ว — เมื่อ deploy L2 สำเร็จ แค่ใส่ contract address ใน `App.jsx` → `NETWORKS.l2.contract`
+  - Contract: `0x46210e130dA5cCA4ec68713F4E5A429010d95860`
+- Frontend รองรับทั้ง L1 และ L2 แล้ว — เมื่อ deploy L2 สำเร็จ แค่ใส่ contract address ใน `wagmiConfig.js` → `CHAIN_CONTRACTS`
 
 ## ไทม์ไลน์
 

@@ -99,10 +99,15 @@ Remix IDE + MetaMask ส่ง transaction ผ่าน browser ซึ่งอ�
 
 ## อัพเดท Frontend หลัง Deploy
 
-เมื่อได้ contract address แล้ว อัพเดทใน `frontend/src/App.jsx`:
+เมื่อได้ contract address แล้ว อัพเดทใน `frontend/src/wagmiConfig.js`:
 
 ```javascript
-const CONTRACT_ADDRESS = "<NEW_CONTRACT_ADDRESS>";
+// อัพเดท contract address ใน CHAIN_CONTRACTS
+export const CHAIN_CONTRACTS = {
+  [jbchain.id]: { address: "<NEW_CONTRACT_ADDRESS>" },
+  [kubtestnet.id]: { address: "<NEW_CONTRACT_ADDRESS>" },
+  // ...
+};
 ```
 
 และอัพเดท ABI ให้ตรงกับ contract ใหม่ (ดู [TODO ด้านล่าง](#frontend-todo))
@@ -111,7 +116,7 @@ const CONTRACT_ADDRESS = "<NEW_CONTRACT_ADDRESS>";
 
 Contract ใหม่มี breaking changes — Frontend ต้องอัพเดท:
 
-- [ ] `completeMeditation()` → `completeMeditation(address token)`
-- [ ] `getUserStats()` return 5 ค่า (เดิม 3): +`todaySessions`, +`canClaim`
-- [ ] `getRewardAmount()` → `getRewardAmount(address token)`
-- [ ] เพิ่ม UI: donation, pending claims, token selection, daily session counter
+- [x] `completeMeditation()` → `completeMeditation(address token)`
+- [x] `getUserStats()` return 5 ค่า (เดิม 3): +`todaySessions`, +`canClaim`
+- [x] `getRewardAmount()` → `getRewardAmount(address token)`
+- [x] เพิ่ม UI: donation, pending claims, token selection, daily session counter

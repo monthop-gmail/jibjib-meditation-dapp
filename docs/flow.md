@@ -106,7 +106,6 @@
 Phase             | แสดงอะไร
 ------------------|-----------------------------------------
 IDLE              | eligibility status + reward preview + ปุ่ม "เริ่มทำสมาธิ"
-CONNECTING        | "กำลังเชื่อมต่อ..."
 STARTING          | "กำลังเริ่มทำสมาธิ..." + (ถ้า auto-complete จะแสดงผลรอบก่อน)
 MEDITATING (>0)  | นาฬิกานับถอยหลัง + "อย่าออกจากหน้านี้"
 MEDITATING (=0)  | "ยืนยันรับ Reward" + "เริ่มทำสมาธิใหม่"
@@ -138,25 +137,10 @@ DONATING          | "กำลังบริจาค..."
 | ✓ | ได้รับ X JIBJIB | Fund พอ → จ่ายทันที |
 | ⏳ | เก็บ Pending X JIBJIB | Fund ไม่พอ → รอ claim ทีหลัง |
 | 📝 | บันทึกแล้ว (ยังไม่ถึงเวลารับ) | ยังไม่ครบ 3 ชม. หรือครบ 3 ครั้ง/วัน |
-Phase             | แสดงอะไร
-------------------|-----------------------------------------
-IDLE              | ปุ่ม "เริ่มทำสมาธิ" + eligibility status
-CONNECTING        | "กำลังเชื่อมต่อ..."
-STARTING          | "กำลังเริ่มทำสมาธิ..."
-MEDITATING (>0)   | นาฬิกานับถอยหลัง + "อย่าออกจากหน้านี้"
-MEDITATING (=0)   | "ยืนยันรับ Reward" + "เริ่มทำสมาธิใหม่"
-COMPLETING        | "กำลังยืนยัน..."
-COMPLETED         | ข้อความผลลัพธ์ + eligibility + ปุ่มเริ่มใหม่
-CHEATED           | "ตรวจพบออกจากหน้าจอ" + ปุ่ม "เริ่มใหม่"
-PENDING_COMPLETE  | "มีสมาธิค้าง" + "ยืนยัน" + "เริ่มใหม่"
-CLAIMING          | "กำลัง claim..."
-DONATING          | "กำลังบริจาค..."
-```
 
 ### Transitions
 
 ```
-IDLE ──────── connectWallet ──→ CONNECTING → IDLE
 IDLE ──────── handleStart ───→ STARTING → MEDITATING
 MEDITATING ── ครบเวลา ───────→ MEDITATING (secondsLeft=0)
 MEDITATING ── ออกจากจอ ──────→ CHEATED
@@ -167,7 +151,7 @@ CHEATED ───── handleStart ──→ STARTING → MEDITATING (auto-comp
 PENDING ───── handleComplete → COMPLETING → COMPLETED
 PENDING ───── handleStart ──→ STARTING → MEDITATING (auto-complete)
 * ──────────── switchNetwork → RESET → IDLE
-* ──────────── accountsChanged/chainChanged → RESET → IDLE
+* ──────────── account/chain change (useEffect) → RESET → IDLE
 ```
 
 ---
@@ -206,9 +190,9 @@ remaining = 300 - elapsed
 - Contract ยังเช็คเวลา 5 นาทีอยู่ (ไม่โกงได้จาก frontend)
 
 ### Wallet
-- รองรับ MetaMask + Brave Wallet (EIP-1193)
-- เปลี่ยน network → disconnect + แสดงปุ่มเชื่อมต่อใหม่
-- เปลี่ยน account/chain จากใน wallet → auto-disconnect
+- Wagmi V2 + Viem + RainbowKit (MetaMask, WalletConnect, etc.)
+- เปลี่ยน network → RainbowKit auto-switch
+- เปลี่ยน account/chain → useEffect reset state อัตโนมัติ
 
 ### History
 - เก็บใน localStorage (`jibjib_history`), สูงสุด 50 รายการ
@@ -216,6 +200,9 @@ remaining = 300 - elapsed
 - บันทึกเมื่อ:
   - กด "ยืนยันรับ Reward" (completeMeditation)
   - กด "เริ่มใหม่" ระหว่างทำสมาธิ (auto-complete)
+- Export: ดาวน์โหลดเป็น JSON
+- Import: อัพโหลด JSON merge กับประวัติที่มี
+- ดึงจาก Blockchain: query events จาก contract ทุก version (legacy + current)
 
 ### Donate
 - Native token: ส่ง `{ value }` ตรง

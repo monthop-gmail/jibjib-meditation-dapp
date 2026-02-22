@@ -17,8 +17,8 @@ DApp สำหรับแจก reward token ให้ผู้ใช้ที�
 
 | Network | Chain ID | RPC | Contract | Status |
 |---------|----------|-----|----------|--------|
-| **JB Chain** | 8899 (0x22c3) | `rpc-l1.jibchain.net` | `0x740ff5b8646c7feb3f46A475a33A992DC2CCC5c8` | Working |
-| **KUB Testnet** | 25925 (0x6545) | `rpc-testnet.bitkubchain.io` | `0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064` | Working |
+| **JB Chain** | 8899 (0x22c3) | `rpc-l1.jibchain.net` | `0x4F17Cd4b8a1BbcB44560BD5ee5c29f277716d0bc` | Working |
+| **KUB Testnet** | 25925 (0x6545) | `rpc-testnet.bitkubchain.io` | `0x46210e130dA5cCA4ec68713F4E5A429010d95860` | Working |
 | KUB L2 Testnet | 259251 (0x3F4B3) | `kublayer2.testnet.kubchain.io` | - | [Blocked](docs/kub-l2-deploy-blocker.md) |
 
 ## Reward Amounts
@@ -40,7 +40,9 @@ DApp สำหรับแจก reward token ให้ผู้ใช้ที�
 - **Wallet Balance** — แสดง balance ของทุก token ในกระเป๋า
 - **Donation** — บริจาคเข้า reward fund ได้ (ERC20 auto-approve)
 - **Pending Claims** — ถ้า fund หมด reward เก็บเป็น pending ไว้ claim ทีหลัง
-- **Wallet Support** — MetaMask, Brave Wallet
+- **History** — ประวัติการทำสมาธิ เก็บใน localStorage, Export/Import JSON, ดึงจาก Blockchain ได้
+- **Auto-complete** — เริ่มใหม่ได้เลยโดยไม่ต้องกด complete ก่อน (contract auto-complete)
+- **Wallet Support** — RainbowKit (MetaMask, WalletConnect, Coinbase Wallet, etc.)
 
 ## Quick Start (Dev)
 
@@ -88,6 +90,7 @@ jibjib-meditation-dapp/
 │   └── package.json
 ├── docs/
 │   ├── deploy-remix.md             # Remix IDE deploy guide
+│   ├── flow.md                     # Flow documentation
 │   └── kub-l2-deploy-blocker.md    # L2 nginx issue documentation
 ├── frontend/
 │   ├── public/_headers             # CF Pages cache control
@@ -95,7 +98,8 @@ jibjib-meditation-dapp/
 │   ├── package.json
 │   ├── vite.config.js
 │   └── src/
-│       ├── App.jsx                 # Main app (React + ethers v6)
+│       ├── wagmiConfig.js           # Chain definitions, contract/token config
+│       ├── App.jsx                 # Main app (React + Wagmi V2 + Viem + RainbowKit)
 │       ├── App.css                 # Dark theme, responsive
 │       └── main.jsx
 └── .github/workflows/
