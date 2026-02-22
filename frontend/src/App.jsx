@@ -3,7 +3,7 @@ import { useAccount, useChainId, useSwitchChain, useDisconnect, useReadContract,
 import { readContract, getPublicClient } from 'wagmi/actions'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { formatEther, parseEther, parseEventLogs } from 'viem'
-import { config, CHAIN_CONTRACTS, CHAIN_TOKENS, jbchain, kubtestnet, kubl2testnet } from './wagmiConfig.js'
+import { config, CHAIN_CONTRACTS, CHAIN_TOKENS, LEGACY_CONTRACTS, jbchain, kubtestnet, kubl2testnet } from './wagmiConfig.js'
 
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
 
@@ -531,28 +531,43 @@ function App() {
     setFetchingChain(true)
     try {
       const client = getPublicClient(config, { chainId })
+      const legacyAddrs = LEGACY_CONTRACTS[chainId] || []
+      const allContracts = [...legacyAddrs, contractAddress]
 
-      const [completedLogs, pendingLogs, recordedLogs] = await Promise.all([
-        client.getContractEvents({
-          address: contractAddress, abi: CONTRACT_ABI,
-          eventName: 'MeditationCompleted', args: { user: address },
-          fromBlock: 0n, toBlock: 'latest',
-        }),
-        client.getContractEvents({
-          address: contractAddress, abi: CONTRACT_ABI,
-          eventName: 'PendingRewardStored', args: { user: address },
-          fromBlock: 0n, toBlock: 'latest',
-        }),
-        client.getContractEvents({
-          address: contractAddress, abi: CONTRACT_ABI,
-          eventName: 'MeditationRecorded', args: { user: address },
-          fromBlock: 0n, toBlock: 'latest',
-        }),
-      ])
+      let allCompleted = [], allPending = [], allRecorded = []
+
+      for (const addr of allContracts) {
+        try {
+          const [completed, pending, recorded] = await Promise.all([
+            client.getContractEvents({
+              address: addr, abi: CONTRACT_ABI,
+              eventName: 'MeditationCompleted', args: { user: address },
+              fromBlock: 0n, toBlock: 'latest',
+            }),
+            client.getContractEvents({
+              address: addr, abi: CONTRACT_ABI,
+              eventName: 'PendingRewardStored', args: { user: address },
+              fromBlock: 0n, toBlock: 'latest',
+            }),
+            client.getContractEvents({
+              address: addr, abi: CONTRACT_ABI,
+              eventName: 'MeditationRecorded', args: { user: address },
+              fromBlock: 0n, toBlock: 'latest',
+            }),
+          ])
+          allCompleted = [...allCompleted, ...completed]
+          allPending = [...allPending, ...pending]
+          allRecorded = [...allRecorded, ...recorded]
+        } catch (err) {
+          // Old contracts may have different event signatures — skip silently
+          console.log(`Skip ${addr.slice(0, 10)}...: ${err.message}`)
+        }
+      }
 
       // Collect unique block numbers to fetch timestamps
+      const allLogs = [...allCompleted, ...allPending, ...allRecorded]
       const blockNums = new Set()
-      ;[...completedLogs, ...pendingLogs, ...recordedLogs].forEach(log => blockNums.add(log.blockNumber))
+      allLogs.forEach(log => blockNums.add(log.blockNumber))
       const blockTimestamps = {}
       await Promise.all([...blockNums].map(async (bn) => {
         const block = await client.getBlock({ blockNumber: bn })
@@ -561,9 +576,9 @@ function App() {
 
       const chainEntries = []
 
-      completedLogs.forEach(log => {
+      allCompleted.forEach(log => {
         const tokenAddr = log.args.token
-        const token = tokens.find(t => t.address.toLowerCase() === tokenAddr.toLowerCase())
+        const token = tokens.find(t => t.address.toLowerCase() === tokenAddr?.toLowerCase())
         chainEntries.push({
           ts: blockTimestamps[log.blockNumber.toString()],
           net: chainLabel,
@@ -573,9 +588,9 @@ function App() {
         })
       })
 
-      pendingLogs.forEach(log => {
+      allPending.forEach(log => {
         const tokenAddr = log.args.token
-        const token = tokens.find(t => t.address.toLowerCase() === tokenAddr.toLowerCase())
+        const token = tokens.find(t => t.address.toLowerCase() === tokenAddr?.toLowerCase())
         chainEntries.push({
           ts: blockTimestamps[log.blockNumber.toString()],
           net: chainLabel,
@@ -585,7 +600,7 @@ function App() {
         })
       })
 
-      recordedLogs.forEach(log => {
+      allRecorded.forEach(log => {
         chainEntries.push({
           ts: blockTimestamps[log.blockNumber.toString()],
           net: chainLabel,
@@ -603,7 +618,7 @@ function App() {
 
       setHistory(merged)
       localStorage.setItem('jibjib_history', JSON.stringify(merged))
-      alert(`ดึงได้ ${chainEntries.length} รายการจาก ${chainLabel}`)
+      alert(`ดึงได้ ${chainEntries.length} รายการจาก ${chainLabel} (${allContracts.length} contracts)`)
     } catch (err) {
       console.error('fetchHistoryFromChain:', err)
       alert('ดึงประวัติไม่สำเร็จ: ' + (err.shortMessage || err.message))

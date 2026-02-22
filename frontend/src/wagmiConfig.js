@@ -45,6 +45,24 @@ export const CHAIN_TOKENS = {
   ],
 }
 
+// Legacy contract addresses (oldest → newest, excluding current)
+export const LEGACY_CONTRACTS = {
+  [jbchain.id]: [
+    '0x5234C5baD4819Cf70a39d87696dfB3e0e1eAFcaF',
+    '0x740ff5b8646c7feb3f46A475a33A992DC2CCC5c8',
+    '0x7DCd9A42096D9f2B97CD6680d72E71bCBCFfdCf1',
+    '0x59D689A6ded742A4BaE7D89d2A462c79B0F2897B',
+    '0x81916861dCe173FE55B28d51088C3F3fb68975b6',
+  ],
+  [kubtestnet.id]: [
+    '0xCc79006F652a3F091c93e02F4f9A0aA9eaa68064',
+    '0x740ff5b8646c7feb3f46A475a33A992DC2CCC5c8',
+    '0x17217acD1CF5DC1b38E7Ef007Ae684c3c40Ec1d8',
+    '0xFaaCCa7830b49e55b37DEE74FD9BB68a283181CC',
+  ],
+  [kubl2testnet.id]: [],
+}
+
 export const config = getDefaultConfig({
   appName: 'JIBJIB Meditation',
   projectId: 'jibjib-meditation',
