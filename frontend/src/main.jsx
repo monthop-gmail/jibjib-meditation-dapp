@@ -25,7 +25,12 @@ class ErrorBoundary extends React.Component {
           <h2>เกิดข้อผิดพลาด</h2>
           <p style={{ color: '#b2bec3', marginTop: '1rem' }}>{this.state.error.message}</p>
           <button
-            onClick={() => { localStorage.clear(); window.location.reload() }}
+            onClick={() => {
+              const history = localStorage.getItem('jibjib_history')
+              localStorage.clear()
+              if (history) localStorage.setItem('jibjib_history', history)
+              window.location.reload()
+            }}
             style={{ marginTop: '1rem', padding: '0.5rem 1.5rem', borderRadius: '8px', border: 'none', background: '#6c5ce7', color: 'white', cursor: 'pointer' }}
           >
             ล้างข้อมูลแล้วโหลดใหม่
