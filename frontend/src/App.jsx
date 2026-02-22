@@ -746,9 +746,50 @@ function App() {
                 </div>
               ))}
             </div>
-            <button className="btn-clear-history" onClick={() => { setHistory([]); localStorage.removeItem('jibjib_history') }}>
-              ล้างประวัติ
-            </button>
+            <div className="history-actions">
+              <button className="btn-history-action" onClick={() => {
+                const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `jibjib-history-${new Date().toISOString().slice(0, 10)}.json`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}>
+                Export
+              </button>
+              <button className="btn-history-action" onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = '.json'
+                input.onchange = (e) => {
+                  const file = e.target.files[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = (ev) => {
+                    try {
+                      const data = JSON.parse(ev.target.result)
+                      if (!Array.isArray(data)) throw new Error('not array')
+                      const merged = [...data, ...history]
+                        .filter((h, i, arr) => arr.findIndex(x => x.ts === h.ts) === i)
+                        .sort((a, b) => b.ts - a.ts)
+                        .slice(0, HISTORY_MAX)
+                      setHistory(merged)
+                      localStorage.setItem('jibjib_history', JSON.stringify(merged))
+                    } catch {
+                      alert('ไฟล์ไม่ถูกต้อง')
+                    }
+                  }
+                  reader.readAsText(file)
+                }
+                input.click()
+              }}>
+                Import
+              </button>
+              <button className="btn-clear-history" onClick={() => { setHistory([]); localStorage.removeItem('jibjib_history') }}>
+                ล้างประวัติ
+              </button>
+            </div>
           </>
         )}
       </div>
