@@ -1,71 +1,31 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from 'react'
-import { BrowserProvider, Contract, parseEther, formatEther } from 'ethers'
+import { useAccount, useChainId, useSwitchChain, useDisconnect, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from 'wagmi'
+import { readContract } from 'wagmi/actions'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { formatEther, parseEther, parseEventLogs } from 'viem'
+import { config, CHAIN_CONTRACTS, CHAIN_TOKENS, jbchain } from './wagmiConfig.js'
+
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
 
 const IERC20_ABI = [
-  'function approve(address spender, uint256 amount) external returns (bool)',
-  'function allowance(address owner, address spender) external view returns (uint256)',
-  'function balanceOf(address account) external view returns (uint256)',
+  { name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { name: 'allowance', type: 'function', stateMutability: 'view', inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
 ]
 
-const NETWORKS = {
-  jbchain: {
-    key: 'jbchain',
-    label: 'JB Chain',
-    chainId: '0x22c3',
-    chainName: 'JB Chain',
-    rpcUrls: ['https://rpc-l1.jibchain.net'],
-    nativeCurrency: { name: 'JBC', symbol: 'JBC', decimals: 18 },
-    blockExplorerUrls: ['https://exp-l1.jibchain.net'],
-    contract: '0x4F17Cd4b8a1BbcB44560BD5ee5c29f277716d0bc',
-    tokens: [
-      { address: '0xebe937ee67e3219d176965cc08110a258f925e01', symbol: 'JIBJIB', name: 'JIBJIB' },
-      { address: '0x440bb674a2e443d600396a69c4c46362148699a2', symbol: 'JIBJIB C', name: 'JIBJIB C' },
-      { address: '0x0000000000000000000000000000000000000000', symbol: 'JBC', name: 'JBC (Native)' },
-    ],
-  },
-  kubtestnet: {
-    key: 'kubtestnet',
-    label: 'KUB Testnet',
-    chainId: '0x6545',
-    chainName: 'KUB Testnet',
-    rpcUrls: ['https://rpc-testnet.bitkubchain.io'],
-    nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
-    blockExplorerUrls: ['https://testnet.kubscan.com'],
-    contract: '0x46210e130dA5cCA4ec68713F4E5A429010d95860',
-    tokens: [
-      { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
-    ],
-  },
-  kubl2: {
-    key: 'kubl2',
-    label: 'KUB Layer 2 Testnet',
-    chainId: '0x3F4B3',
-    chainName: 'KUB Layer 2 Testnet',
-    rpcUrls: ['https://kublayer2.testnet.kubchain.io'],
-    nativeCurrency: { name: 'tKUB', symbol: 'tKUB', decimals: 18 },
-    blockExplorerUrls: ['https://kublayer2.testnet.kubscan.com'],
-    contract: '',
-    tokens: [
-      { address: '0x0000000000000000000000000000000000000000', symbol: 'tKUB', name: 'tKUB (Native)' },
-    ],
-  },
-}
-
 const CONTRACT_ABI = [
-  'function startMeditation() external',
-  'function completeMeditation(address token) external',
-  'function claimPendingReward(address token) external',
-  'function donate(address token, uint256 amount) external payable',
-  'function getRewardAmount(address token) external view returns (uint256)',
-  'function getMeditationDuration() external view returns (uint256)',
-  'function getUserStats(address user) external view returns (uint256 totalSessions, uint256 lastSessionTime, bool isMeditating, uint256 todaySessions, bool canClaim)',
-  'function getRewardEligibility(address user) external view returns (bool canGetReward, uint256 secondsUntilReward, uint256 todaySessions, bool isMeditating)',
-  'function getPendingReward(address user, address token) external view returns (uint256)',
-  'function getTokenBalance(address token) external view returns (uint256)',
-  'function getSupportedTokens() external view returns (address[])',
-  'event MeditationCompleted(address indexed user, uint256 reward, address token, bool isBonus)',
-  'event MeditationRecorded(address indexed user, uint256 timestamp)',
-  'event PendingRewardStored(address indexed user, address token, uint256 amount)',
+  { name: 'startMeditation', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { name: 'completeMeditation', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
+  { name: 'claimPendingReward', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
+  { name: 'donate', type: 'function', stateMutability: 'payable', inputs: [{ name: 'token', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'getRewardAmount', type: 'function', stateMutability: 'view', inputs: [{ name: 'token', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'getUserStats', type: 'function', stateMutability: 'view', inputs: [{ name: 'user', type: 'address' }], outputs: [{ name: 'totalSessions', type: 'uint256' }, { name: 'lastSessionTime', type: 'uint256' }, { name: 'isMeditating', type: 'bool' }, { name: 'todaySessions', type: 'uint256' }, { name: 'canClaim', type: 'bool' }] },
+  { name: 'getRewardEligibility', type: 'function', stateMutability: 'view', inputs: [{ name: 'user', type: 'address' }], outputs: [{ name: 'canGetReward', type: 'bool' }, { name: 'secondsUntilReward', type: 'uint256' }, { name: 'todaySessions', type: 'uint256' }, { name: 'isMeditating', type: 'bool' }] },
+  { name: 'getPendingReward', type: 'function', stateMutability: 'view', inputs: [{ name: 'user', type: 'address' }, { name: 'token', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'getTokenBalance', type: 'function', stateMutability: 'view', inputs: [{ name: 'token', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'MeditationCompleted', type: 'event', inputs: [{ name: 'user', type: 'address', indexed: true }, { name: 'reward', type: 'uint256' }, { name: 'token', type: 'address' }, { name: 'isBonus', type: 'bool' }] },
+  { name: 'MeditationRecorded', type: 'event', inputs: [{ name: 'user', type: 'address', indexed: true }, { name: 'timestamp', type: 'uint256' }] },
+  { name: 'PendingRewardStored', type: 'event', inputs: [{ name: 'user', type: 'address', indexed: true }, { name: 'token', type: 'address' }, { name: 'amount', type: 'uint256' }] },
 ]
 
 function fmtBal(val) {
@@ -117,12 +77,11 @@ function getResultText(result, token, reward) {
 }
 
 const HISTORY_MAX = 50
-
 const MEDITATION_SECONDS = 300
 
 // ── State Machine ───────────────────────────────────────────────────
 const initialMeditationState = {
-  phase: 'IDLE', // IDLE | CONNECTING | STARTING | MEDITATING | COMPLETING | COMPLETED | CHEATED | PENDING_COMPLETE | CLAIMING | DONATING
+  phase: 'IDLE',
   error: '',
   loading: '',
   completedMsg: '',
@@ -130,13 +89,6 @@ const initialMeditationState = {
 
 function meditationReducer(state, action) {
   switch (action.type) {
-    case 'CONNECT_START':
-      return { phase: 'CONNECTING', loading: 'กำลังเชื่อมต่อ...', error: '', completedMsg: '' }
-    case 'CONNECT_SUCCESS':
-      return { ...state, phase: 'IDLE', loading: '' }
-    case 'CONNECT_FAIL':
-      return { ...state, phase: 'IDLE', loading: '', error: action.error }
-
     case 'START_BEGIN':
       return { phase: 'STARTING', loading: 'กำลังเริ่มทำสมาธิ...', error: '', completedMsg: '' }
     case 'START_SUCCESS':
@@ -158,6 +110,7 @@ function meditationReducer(state, action) {
       return { ...state, phase: 'MEDITATING' }
     case 'PENDING_DETECTED':
       return { ...state, phase: 'PENDING_COMPLETE' }
+
     case 'CLAIM_BEGIN':
       return { ...state, phase: 'CLAIMING', loading: 'กำลัง claim pending reward...', error: '' }
     case 'CLAIM_SUCCESS':
@@ -186,57 +139,65 @@ function meditationReducer(state, action) {
 
 // ── Component ───────────────────────────────────────────────────────
 function App() {
-  const [network, setNetwork] = useState(() => {
-    const saved = localStorage.getItem('jibjib_network')
-    if (saved && NETWORKS[saved]) return saved
-    localStorage.removeItem('jibjib_network')
-    return 'jbchain'
-  })
-  const [account, setAccount] = useState(null)
-  const [contract, setContract] = useState(null)
-  const [stats, setStats] = useState({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
-  const [eligibility, setEligibility] = useState({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
+  const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const { switchChain } = useSwitchChain()
+  const { disconnect } = useDisconnect()
+  const { writeContractAsync } = useWriteContract()
+
+  const contractAddress = CHAIN_CONTRACTS[chainId] || ''
+  const tokens = CHAIN_TOKENS[chainId] || CHAIN_TOKENS[jbchain.id]
+  const chainLabel = { [8899]: 'JB Chain', [25925]: 'KUB Testnet', [259251]: 'KUB L2 Testnet' }[chainId] || 'Unknown'
+
+  const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
   const [secondsLeft, setSecondsLeft] = useState(MEDITATION_SECONDS)
+  const [stats, setStats] = useState({ totalSessions: 0, lastSessionTime: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+  const [eligibility, setEligibility] = useState({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
   const [rewardAmounts, setRewardAmounts] = useState({})
   const [pendingRewards, setPendingRewards] = useState({})
   const [fundBalances, setFundBalances] = useState({})
-  const [selectedTokenIdx, setSelectedTokenIdx] = useState(0)
   const [walletBalances, setWalletBalances] = useState({})
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('jibjib_history') || '[]') } catch { return [] }
   })
   const [mState, dispatch] = useReducer(meditationReducer, initialMeditationState)
   const timerRef = useRef(null)
+  const prevAddressRef = useRef(null)
 
-  const net = NETWORKS[network] || NETWORKS.jbchain
-  const selectedToken = net.tokens[selectedTokenIdx] || net.tokens[0]
-  const isLocked = ['STARTING', 'MEDITATING', 'COMPLETING', 'CONNECTING', 'CLAIMING', 'DONATING'].includes(mState.phase)
+  const selectedToken = tokens[selectedTokenIdx] || tokens[0]
+  const isLocked = ['STARTING', 'MEDITATING', 'COMPLETING', 'CLAIMING', 'DONATING'].includes(mState.phase)
 
-  // Cleanup timer on unmount + listen for account/chain changes
+  // Reset state on account/chain change
   useEffect(() => {
-    const eth = window.ethereum
-    if (!eth) return () => clearInterval(timerRef.current)
-    const disconnect = () => {
+    if (prevAddressRef.current && prevAddressRef.current !== address) {
       clearInterval(timerRef.current)
       setSecondsLeft(MEDITATION_SECONDS)
       dispatch({ type: 'RESET' })
-      setAccount(null)
-      setContract(null)
-      setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+      setStats({ totalSessions: 0, lastSessionTime: 0, isMeditating: false, todaySessions: 0, canClaim: true })
       setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
       setRewardAmounts({})
       setPendingRewards({})
       setFundBalances({})
       setWalletBalances({})
     }
-    eth.on('accountsChanged', disconnect)
-    eth.on('chainChanged', disconnect)
-    return () => {
-      clearInterval(timerRef.current)
-      eth.removeListener('accountsChanged', disconnect)
-      eth.removeListener('chainChanged', disconnect)
-    }
-  }, [])
+    prevAddressRef.current = address
+  }, [address])
+
+  useEffect(() => {
+    clearInterval(timerRef.current)
+    setSecondsLeft(MEDITATION_SECONDS)
+    dispatch({ type: 'RESET' })
+    setSelectedTokenIdx(0)
+    setRewardAmounts({})
+    setPendingRewards({})
+    setFundBalances({})
+    setWalletBalances({})
+    setStats({ totalSessions: 0, lastSessionTime: 0, isMeditating: false, todaySessions: 0, canClaim: true })
+    setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
+  }, [chainId])
+
+  // Cleanup timer on unmount
+  useEffect(() => () => clearInterval(timerRef.current), [])
 
   // Anti-cheat: detect tab switch / minimize
   useEffect(() => {
@@ -251,7 +212,7 @@ function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [mState.phase])
 
-  // Resume timer if contract says isMeditating (e.g. after page refresh)
+  // Resume timer if contract says isMeditating
   useEffect(() => {
     if (!stats.isMeditating || !stats.lastSessionTime) return
     if (mState.phase !== 'IDLE') return
@@ -272,33 +233,44 @@ function App() {
     }
   }, [stats.isMeditating, stats.lastSessionTime, mState.phase])
 
-  const loadStats = useCallback(async (c, addr) => {
+  const loadStats = useCallback(async () => {
+    if (!isConnected || !address || !contractAddress) return
+
     try {
-      const [totalSessions, lastSessionTime, isMeditating, todaySessions, canClaim] = await c.getUserStats(addr)
+      const statsResult = await readContract(config, {
+        address: contractAddress,
+        abi: CONTRACT_ABI,
+        functionName: 'getUserStats',
+        args: [address],
+      })
       setStats({
-        totalSessions: Number(totalSessions),
-        lastSessionTime: Number(lastSessionTime),
-        isMeditating,
-        todaySessions: Number(todaySessions),
-        canClaim,
+        totalSessions: Number(statsResult[0]),
+        lastSessionTime: Number(statsResult[1]),
+        isMeditating: statsResult[2],
+        todaySessions: Number(statsResult[3]),
+        canClaim: statsResult[4],
       })
     } catch (err) {
-      console.error('getUserStats failed:', err.message, 'contract:', c.target, 'addr:', addr)
+      console.error('getUserStats failed:', err.message)
       dispatch({ type: 'SET_ERROR', error: 'ดึงข้อมูลไม่ได้ — ลอง Hard Refresh (Ctrl+Shift+R) หรือเปลี่ยน network แล้วกลับมา' })
       return
     }
 
     try {
-      const [canGetReward, secondsUntilReward, todaySessions, isMeditating] = await c.getRewardEligibility(addr)
+      const eligResult = await readContract(config, {
+        address: contractAddress,
+        abi: CONTRACT_ABI,
+        functionName: 'getRewardEligibility',
+        args: [address],
+      })
       setEligibility({
-        canGetReward,
-        secondsUntilReward: Number(secondsUntilReward),
-        todaySessions: Number(todaySessions),
-        isMeditating,
+        canGetReward: eligResult[0],
+        secondsUntilReward: Number(eligResult[1]),
+        todaySessions: Number(eligResult[2]),
+        isMeditating: eligResult[3],
       })
     } catch (err) {
       console.error('getRewardEligibility failed:', err.message)
-      setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: stats.todaySessions, isMeditating: stats.isMeditating })
     }
 
     const rewards = {}
@@ -306,13 +278,12 @@ function App() {
     const balances = {}
     const walletBals = {}
 
-    const provider = c.runner?.provider || c.runner
-    for (const token of net.tokens) {
+    for (const token of tokens) {
       try {
         const [reward, pending, balance] = await Promise.all([
-          c.getRewardAmount(token.address),
-          c.getPendingReward(addr, token.address),
-          c.getTokenBalance(token.address),
+          readContract(config, { address: contractAddress, abi: CONTRACT_ABI, functionName: 'getRewardAmount', args: [token.address] }),
+          readContract(config, { address: contractAddress, abi: CONTRACT_ABI, functionName: 'getPendingReward', args: [address, token.address] }),
+          readContract(config, { address: contractAddress, abi: CONTRACT_ABI, functionName: 'getTokenBalance', args: [token.address] }),
         ])
         rewards[token.symbol] = formatEther(reward)
         pendings[token.symbol] = formatEther(pending)
@@ -324,12 +295,12 @@ function App() {
       }
 
       try {
-        if (token.address === '0x0000000000000000000000000000000000000000') {
-          const bal = await provider.getBalance(addr)
-          walletBals[token.symbol] = formatEther(bal)
+        if (token.address === ZERO_ADDR) {
+          const bal = await readContract(config, { address: contractAddress, abi: [{ name: 'nativeBalance', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }], functionName: 'nativeBalance', args: [] })
+          // For wallet balance, we can't easily read it via readContract — use a placeholder
+          walletBals[token.symbol] = '-'
         } else {
-          const erc20 = new Contract(token.address, IERC20_ABI, provider)
-          const bal = await erc20.balanceOf(addr)
+          const bal = await readContract(config, { address: token.address, abi: IERC20_ABI, functionName: 'balanceOf', args: [address] })
           walletBals[token.symbol] = formatEther(bal)
         }
       } catch {
@@ -341,84 +312,25 @@ function App() {
     setPendingRewards(pendings)
     setFundBalances(balances)
     setWalletBalances(walletBals)
-  }, [net.tokens])
+  }, [isConnected, address, contractAddress, tokens])
 
-  function switchNetwork(key) {
-    clearInterval(timerRef.current)
-    setSecondsLeft(MEDITATION_SECONDS)
-    dispatch({ type: 'RESET' })
-    localStorage.setItem('jibjib_network', key)
-    setNetwork(key)
-    setSelectedTokenIdx(0)
-    setRewardAmounts({})
-    setPendingRewards({})
-    setFundBalances({})
-    setWalletBalances({})
-    setAccount(null)
-    setContract(null)
-    setStats({ totalSessions: 0, isMeditating: false, todaySessions: 0, canClaim: true })
-    setEligibility({ canGetReward: true, secondsUntilReward: 0, todaySessions: 0, isMeditating: false })
-  }
-
-  async function connectWallet() {
-    const ethereum = window.ethereum
-    if (!ethereum) {
-      dispatch({ type: 'SET_ERROR', error: 'ไม่พบ Wallet — กรุณาติดตั้ง MetaMask หรือใช้ Brave Wallet' })
-      return
+  // Load stats when connected
+  useEffect(() => {
+    if (isConnected && address && contractAddress) {
+      loadStats()
     }
-    const contractAddress = net.contract
-    if (!contractAddress) {
-      dispatch({ type: 'SET_ERROR', error: `ยังไม่มี Contract บน ${net.label} — กรุณาเลือก network อื่น` })
-      return
-    }
+  }, [isConnected, address, contractAddress, loadStats])
 
-    dispatch({ type: 'CONNECT_START' })
-    try {
-      await ethereum.request({ method: 'eth_requestAccounts' })
-
-      try {
-        await ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: net.chainId }],
-        })
-      } catch (switchErr) {
-        if (switchErr.code === 4902 || switchErr.code === -32603) {
-          try {
-            await ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: net.chainId,
-                chainName: net.chainName,
-                rpcUrls: net.rpcUrls,
-                nativeCurrency: net.nativeCurrency,
-                blockExplorerUrls: net.blockExplorerUrls,
-              }],
-            })
-          } catch {
-            dispatch({ type: 'CONNECT_FAIL', error: `เพิ่ม ${net.label} ไม่สำเร็จ — กรุณาเพิ่ม network ใน Wallet เอง` })
-            return
-          }
-        } else if (switchErr.code === 4001) {
-          dispatch({ type: 'CONNECT_FAIL', error: 'ผู้ใช้ปฏิเสธการเปลี่ยน network' })
-          return
-        } else {
-          dispatch({ type: 'CONNECT_FAIL', error: `เชื่อมต่อ ${net.label} ไม่สำเร็จ: ${switchErr.message || 'ลองเพิ่ม network เอง'}` })
-          return
-        }
+  // Get native balance via wagmi hook
+  const { data: nativeBalance } = useBalance({ address })
+  useEffect(() => {
+    if (nativeBalance && tokens.length > 0) {
+      const nativeToken = tokens.find(t => t.address === ZERO_ADDR)
+      if (nativeToken) {
+        setWalletBalances(prev => ({ ...prev, [nativeToken.symbol]: formatEther(nativeBalance.value) }))
       }
-
-      const provider = new BrowserProvider(ethereum)
-      const signer = await provider.getSigner()
-      const addr = await signer.getAddress()
-      const c = new Contract(contractAddress, CONTRACT_ABI, signer)
-      setContract(c)
-      setAccount(addr)
-      dispatch({ type: 'CONNECT_SUCCESS' })
-      await loadStats(c, addr)
-    } catch (err) {
-      dispatch({ type: 'CONNECT_FAIL', error: err.message || 'เชื่อมต่อไม่สำเร็จ' })
     }
-  }
+  }, [nativeBalance, tokens])
 
   function startTimer(seconds) {
     setSecondsLeft(seconds)
@@ -432,20 +344,22 @@ function App() {
   }
 
   async function handleStart() {
-    if (!contract) return
+    if (!contractAddress) return
     dispatch({ type: 'START_BEGIN' })
     try {
-      const tx = await contract.startMeditation()
-      const receipt = await tx.wait()
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: CONTRACT_ABI,
+        functionName: 'startMeditation',
+      })
+      const { waitForTransactionReceipt } = await import('wagmi/actions')
+      const receipt = await waitForTransactionReceipt(config, { hash })
 
       // Check for auto-complete events
-      const completedTopic = contract.interface.getEvent('MeditationCompleted').topicHash
-      const pendingTopic = contract.interface.getEvent('PendingRewardStored').topicHash
-      const recordedTopic = contract.interface.getEvent('MeditationRecorded').topicHash
-
-      const hasCompleted = receipt.logs.some(log => log.topics[0] === completedTopic)
-      const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
-      const hasRecorded = receipt.logs.some(log => log.topics[0] === recordedTopic)
+      const events = parseEventLogs({ abi: CONTRACT_ABI, logs: receipt.logs })
+      const hasCompleted = events.some(e => e.eventName === 'MeditationCompleted')
+      const hasPending = events.some(e => e.eventName === 'PendingRewardStored')
+      const hasRecorded = events.some(e => e.eventName === 'MeditationRecorded')
       const reward = rewardAmounts[selectedToken.symbol] || '0'
 
       // Only show message if there was an auto-complete
@@ -463,7 +377,7 @@ function App() {
         }
 
         // Add to history
-        const entry = { ts: Date.now(), net: net.label, token: selectedToken.symbol, reward, result }
+        const entry = { ts: Date.now(), net: chainLabel, token: selectedToken.symbol, reward, result }
         setHistory(prev => {
           const updated = [entry, ...prev].slice(0, HISTORY_MAX)
           localStorage.setItem('jibjib_history', JSON.stringify(updated))
@@ -473,28 +387,32 @@ function App() {
 
       startTimer(MEDITATION_SECONDS)
       dispatch({ type: 'START_SUCCESS' })
+      await loadStats()
     } catch (err) {
-      dispatch({ type: 'START_FAIL', error: err.reason || err.message || 'เริ่มทำสมาธิไม่สำเร็จ' })
+      dispatch({ type: 'START_FAIL', error: err.shortMessage || err.message || 'เริ่มทำสมาธิไม่สำเร็จ' })
     }
   }
 
   async function handleComplete() {
-    if (!contract) return
+    if (!contractAddress) return
     dispatch({ type: 'COMPLETE_BEGIN' })
     try {
-      const tx = await contract.completeMeditation(selectedToken.address)
-      const receipt = await tx.wait()
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: CONTRACT_ABI,
+        functionName: 'completeMeditation',
+        args: [selectedToken.address],
+      })
+      const { waitForTransactionReceipt } = await import('wagmi/actions')
+      const receipt = await waitForTransactionReceipt(config, { hash })
 
       clearInterval(timerRef.current)
       setSecondsLeft(MEDITATION_SECONDS)
 
-      const completedTopic = contract.interface.getEvent('MeditationCompleted').topicHash
-      const pendingTopic = contract.interface.getEvent('PendingRewardStored').topicHash
-      const recordedTopic = contract.interface.getEvent('MeditationRecorded').topicHash
-
-      const hasCompleted = receipt.logs.some(log => log.topics[0] === completedTopic)
-      const hasPending = receipt.logs.some(log => log.topics[0] === pendingTopic)
-      const hasRecorded = receipt.logs.some(log => log.topics[0] === recordedTopic)
+      const events = parseEventLogs({ abi: CONTRACT_ABI, logs: receipt.logs })
+      const hasCompleted = events.some(e => e.eventName === 'MeditationCompleted')
+      const hasPending = events.some(e => e.eventName === 'PendingRewardStored')
+      const hasRecorded = events.some(e => e.eventName === 'MeditationRecorded')
       const reward = rewardAmounts[selectedToken.symbol] || '0'
 
       let msg, result = 'recorded'
@@ -513,36 +431,42 @@ function App() {
 
       dispatch({ type: 'COMPLETE_SUCCESS', msg })
 
-      const entry = { ts: Date.now(), net: net.label, token: selectedToken.symbol, reward, result }
+      const entry = { ts: Date.now(), net: chainLabel, token: selectedToken.symbol, reward, result }
       setHistory(prev => {
         const updated = [entry, ...prev].slice(0, HISTORY_MAX)
         localStorage.setItem('jibjib_history', JSON.stringify(updated))
         return updated
       })
 
-      await loadStats(contract, account)
+      await loadStats()
     } catch (err) {
-      dispatch({ type: 'COMPLETE_FAIL', error: err.reason || err.message || 'ยืนยันไม่สำเร็จ' })
+      dispatch({ type: 'COMPLETE_FAIL', error: err.shortMessage || err.message || 'ยืนยันไม่สำเร็จ' })
     }
   }
 
   async function handleClaimPending() {
-    if (!contract) return
+    if (!contractAddress) return
     dispatch({ type: 'CLAIM_BEGIN' })
     try {
-      const tx = await contract.claimPendingReward(selectedToken.address)
-      await tx.wait()
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: CONTRACT_ABI,
+        functionName: 'claimPendingReward',
+        args: [selectedToken.address],
+      })
+      const { waitForTransactionReceipt } = await import('wagmi/actions')
+      await waitForTransactionReceipt(config, { hash })
       const pending = pendingRewards[selectedToken.symbol] || '0'
       dispatch({ type: 'CLAIM_SUCCESS', msg: `Claim สำเร็จ! ได้รับ ${fmtBal(pending)} ${selectedToken.symbol}` })
-      await loadStats(contract, account)
+      await loadStats()
     } catch (err) {
-      dispatch({ type: 'CLAIM_FAIL', error: err.reason || err.message || 'Claim ไม่สำเร็จ' })
+      dispatch({ type: 'CLAIM_FAIL', error: err.shortMessage || err.message || 'Claim ไม่สำเร็จ' })
     }
   }
 
   async function handleDonate(e, token) {
     e.preventDefault()
-    if (!contract) return
+    if (!contractAddress) return
     const amount = e.target.elements.donateAmount.value
     if (!amount || Number(amount) <= 0) {
       dispatch({ type: 'SET_ERROR', error: 'กรุณาใส่จำนวนที่ถูกต้อง' })
@@ -552,31 +476,51 @@ function App() {
     dispatch({ type: 'DONATE_BEGIN', loadingMsg: 'กำลังบริจาค...' })
     try {
       const parsedAmount = parseEther(amount)
-      let tx
+      const { waitForTransactionReceipt } = await import('wagmi/actions')
 
-      if (token.address === '0x0000000000000000000000000000000000000000') {
-        tx = await contract.donate(token.address, 0, { value: parsedAmount })
+      if (token.address === ZERO_ADDR) {
+        const hash = await writeContractAsync({
+          address: contractAddress,
+          abi: CONTRACT_ABI,
+          functionName: 'donate',
+          args: [token.address, 0n],
+          value: parsedAmount,
+        })
+        await waitForTransactionReceipt(config, { hash })
       } else {
-        const signer = await new BrowserProvider(window.ethereum).getSigner()
-        const erc20 = new Contract(token.address, IERC20_ABI, signer)
-        const allowance = await erc20.allowance(account, net.contract)
+        const allowance = await readContract(config, {
+          address: token.address,
+          abi: IERC20_ABI,
+          functionName: 'allowance',
+          args: [address, contractAddress],
+        })
 
         if (allowance < parsedAmount) {
           dispatch({ type: 'SET_LOADING', msg: `กำลัง approve ${token.symbol}...` })
-          const approveTx = await erc20.approve(net.contract, parsedAmount)
-          await approveTx.wait()
+          const approveHash = await writeContractAsync({
+            address: token.address,
+            abi: IERC20_ABI,
+            functionName: 'approve',
+            args: [contractAddress, parsedAmount],
+          })
+          await waitForTransactionReceipt(config, { hash: approveHash })
         }
 
         dispatch({ type: 'SET_LOADING', msg: 'กำลังบริจาค...' })
-        tx = await contract.donate(token.address, parsedAmount)
+        const hash = await writeContractAsync({
+          address: contractAddress,
+          abi: CONTRACT_ABI,
+          functionName: 'donate',
+          args: [token.address, parsedAmount],
+        })
+        await waitForTransactionReceipt(config, { hash })
       }
 
-      await tx.wait()
       dispatch({ type: 'DONATE_SUCCESS', msg: `บริจาค ${amount} ${token.symbol} สำเร็จ!` })
       e.target.elements.donateAmount.value = ''
-      await loadStats(contract, account)
+      await loadStats()
     } catch (err) {
-      dispatch({ type: 'DONATE_FAIL', error: err.reason || err.message || 'บริจาคไม่สำเร็จ' })
+      dispatch({ type: 'DONATE_FAIL', error: err.shortMessage || err.message || 'บริจาคไม่สำเร็จ' })
     }
   }
 
@@ -588,31 +532,21 @@ function App() {
       <h1>JIBJIB Meditation</h1>
       <p className="subtitle">ทำสมาธิ 5 นาที รับ Reward บน Blockchain</p>
 
-      {/* Network Selector */}
-      <div className="network-selector">
-        {Object.values(NETWORKS).map(n => (
-          <button
-            key={n.key}
-            className={`network-btn ${network === n.key ? 'active' : ''} ${!n.contract ? 'no-contract' : ''}`}
-            onClick={() => switchNetwork(n.key)}
-            disabled={isLocked}
-          >
-            {n.label}
-            {!n.contract && <span className="soon-badge">เร็วๆนี้</span>}
-          </button>
-        ))}
+      {/* Wallet Connect */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+        <ConnectButton showBalance={false} chainStatus="icon" />
       </div>
 
       {/* Token Selector */}
-      {net.tokens.length > 1 && (
+      {isConnected && tokens.length > 1 && (
         <div className="token-selector">
           <label>เลือก Token ที่จะใช้:</label>
           <select
             value={selectedTokenIdx}
             onChange={(e) => setSelectedTokenIdx(Number(e.target.value))}
-            disabled={isLocked || account === null}
+            disabled={isLocked}
           >
-            {net.tokens.map((t, i) => (
+            {tokens.map((t, i) => (
               <option key={i} value={i}>{t.name}</option>
             ))}
           </select>
@@ -623,22 +557,16 @@ function App() {
       {mState.loading && <div className="loading">{mState.loading}</div>}
       {mState.phase === 'COMPLETED' && <div className="success">{mState.completedMsg}</div>}
 
-      {!account ? (
-        <button className="btn btn-connect" onClick={connectWallet} disabled={!!mState.loading}>
-          เชื่อมต่อ Wallet
-        </button>
-      ) : (
+      {isConnected && contractAddress && (
         <div className="main">
           <div className="account">
-            {account.slice(0, 6)}...{account.slice(-4)}
-            <span className="network-badge">{net.label}</span>
+            {address.slice(0, 6)}...{address.slice(-4)}
+            <span className="network-badge">{chainLabel}</span>
           </div>
 
-          {net.contract && (
-            <div className="contract-address">
-              <small>Contract: {net.contract.slice(0, 10)}...{net.contract.slice(-4)}</small>
-            </div>
-          )}
+          <div className="contract-address">
+            <small>Contract: {contractAddress.slice(0, 10)}...{contractAddress.slice(-4)}</small>
+          </div>
 
           <div className="timer">
             <div className="timer-display">
@@ -664,7 +592,7 @@ function App() {
               </>
             )}
             {['IDLE', 'COMPLETED'].includes(mState.phase) && !stats.isMeditating && (
-              <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract || !stats.canClaim}>
+              <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contractAddress || !stats.canClaim}>
                 {stats.canClaim ? 'เริ่มทำสมาธิ' : 'ครบ 3 ครั้งวันนี้แล้ว'}
               </button>
             )}
@@ -673,7 +601,7 @@ function App() {
                 <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
                   ยืนยันรับ Reward
                 </button>
-                <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract}>
+                <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contractAddress}>
                   เริ่มทำสมาธิใหม่
                 </button>
               </div>
@@ -687,13 +615,13 @@ function App() {
                 <button className="btn btn-complete" onClick={handleComplete} disabled={!!mState.loading}>
                   ยืนยันรับ Reward
                 </button>
-                <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract}>
+                <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contractAddress}>
                   เริ่มทำสมาธิใหม่
                 </button>
               </div>
             )}
             {mState.phase === 'CHEATED' && (
-              <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contract}>
+              <button className="btn btn-start" onClick={handleStart} disabled={!!mState.loading || !contractAddress}>
                 เริ่มใหม่
               </button>
             )}
@@ -739,7 +667,7 @@ function App() {
                 <span className="token-reward">รางวัล</span>
                 <span className="token-fund">Fund</span>
               </div>
-              {net.tokens.map(token => (
+              {tokens.map(token => (
                 <div key={token.symbol} className="token-stat-row">
                   <span className="token-name">{token.symbol}</span>
                   <span className="token-wallet">{fmtBal(walletBalances[token.symbol] || '-')}</span>
@@ -754,7 +682,7 @@ function App() {
           <div className="donate-section">
             <h3>บริจาคเข้า Fund</h3>
             <div className="donate-list">
-              {net.tokens.map(token => (
+              {tokens.map(token => (
                 <div key={token.symbol} className="donate-row">
                   <div className="donate-token-info">
                     <span className="donate-token-name">{token.symbol}</span>
@@ -768,7 +696,7 @@ function App() {
                       min="0"
                       placeholder={token.symbol}
                     />
-                    <button type="submit" className="btn btn-donate-sm" disabled={!!mState.loading || !contract}>
+                    <button type="submit" className="btn btn-donate-sm" disabled={!!mState.loading || !contractAddress}>
                       +
                     </button>
                   </form>
@@ -777,6 +705,10 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {isConnected && !contractAddress && (
+        <div className="error">ยังไม่มี Contract บน {chainLabel} — กรุณาเลือก network อื่น</div>
       )}
 
       <div className="history-section">
@@ -805,7 +737,7 @@ function App() {
       </div>
 
       <footer>
-        <p>{net.label} | JIBJIB Meditation Reward</p>
+        <p>{chainLabel} | JIBJIB Meditation Reward</p>
       </footer>
     </div>
   )
